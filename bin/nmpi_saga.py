@@ -33,42 +33,12 @@ from sh import git
 
 
 #-----------------------------------------------------------------------------
-# set parameters for user
-
-# we have a unique user for the nmpi
-AUTH = ("do", "do")
-
-# NPI addresses
-NMPI_HOST = "127.0.0.1:8000"
-NMPI_API = "/api/v1/"
-NMPI_ENDPOINT = "http://" + NMPI_HOST
-NMPI_NEXT = "queue/submitted/next/"
-NMPI_NEXTENDPOINT = "http://" + NMPI_HOST + NMPI_API + NMPI_NEXT
-
-# Change WORK_HOST to the machine you want to run this on.
-WORK_HOST = "/home/do/localhost"
-
-# This refers to your working directory on 'WORK_HOST'. If you use a
-# cluster for 'WORK_HOST', make sure this points to a shared filesystem.
-WORK_DIR = "nmpi"
-WORK_FILE_ENDPOINT = WORK_HOST + "/" + WORK_DIR
-
-# location of the executable that will be called for all scripts:
-JOB_EXECUTABLE = '/home/do/.virtualenvs/nmpi_mozaik/local/bin/python'
-
-# 'local' adaptor represents the local machine
-JOB_SERVICE_ADAPTOR = 'local://localhost'
-
-#-----------------------------------------------------------------------------
-
-
-#-----------------------------------------------------------------------------
 # STATUS mapping
 
 # PUT functions
 def job_pending( job, desc, text ):
     job['status'] = "submitted"
-    job = job_put_log( job, desc, text )
+    job = put_job_log( job, desc, text )
     return job
 
 def job_running( job, desc, text ):
@@ -76,27 +46,27 @@ def job_running( job, desc, text ):
     ts = time.time()
     st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
     job['timestamp_submission'] = st
-    job_put_log( job, desc, text )
+    put_job_log( job, desc, text )
     return job
 
 def job_done( job, desc, text ):
     job['status'] = "finished"
-    job = job_put_log( job, desc, text )
+    job = put_job_log( job, desc, text )
     return job
 
 def job_failed( job, desc, text ):
     job['status'] = "error"
-    job = job_put_log( job, desc, text )
+    job = put_job_log( job, desc, text )
     return job
 
-def job_put_log( job, desc, text ):
+def put_job_log( job, desc, text ):
     #print job
     ts = time.time()
     st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
     job['timestamp_completion'] = st
     job['log'] += "\n\n" + desc + "\n-----------------\n" + st + "\n-----------------\n" + text
     try:
-        r = requests.put( NMPI_ENDPOINT+job['resource_uri'], data=json.dumps(job), headers={"content-type":"application/json"}, auth=AUTH )
+        r = requests.put( "http://157.136.240.232"+job['resource_uri'], data=json.dumps(job), headers={"content-type":"application/json"}, auth=("do","do") )
         print r.content
     except ValueError, ex:
         print "An exception occured: (%s) %s " % (ex.type, (str(ex)))
@@ -123,12 +93,38 @@ def process_error(line, stdin, process):
     print(line)
     #return True
 
+
+def load_config( fullpath ):
+    conf = {}
+    with open(fullpath) as f:
+        for line in f:
+            # leave out comment as python/bash
+            if not line.startswith('#') and len(line)>=5:
+                (key, val) = line.split()
+                conf[key] = val.strip(' \'"')
+    return conf
+
 #-----------------------------------------------------------------------------
 
 def main():
+    # set parameters
+    config = load_config( "./saga.cfg" )
+    # print config['AUTH_USER']
+    # print config['AUTH_PASS']
+    # print config['NMPI_HOST']
+    # print config['NMPI_API']
+    # print config['NMPI_ENDPOINT']
+    # print config['NMPI_NEXT']
+    # print config['NMPI_NEXTENDPOINT']
+    # print config['WORK_HOST']
+    # print config['WORK_DIR']
+    # print config['WORK_FILE_ENDPOINT']
+    # print config['JOB_EXECUTABLE']
+    # print config['JOB_SERVICE_ADAPTOR']
 
+    #-----------------------------------------------------------------------------
     # 1. it uses the nmpi api to retrieve the next nmpi_job (FIFO of nmpi_job with status='submitted')
-    r = requests.get( NMPI_NEXTENDPOINT, auth=AUTH )
+    r = requests.get( config['NMPI_NEXTENDPOINT'], auth=( config['AUTH_USER'], config['AUTH_PASS'] ) )
     try:
         nmpi_job = json.loads(r.content)
     except ValueError, ex:
@@ -142,24 +138,26 @@ def main():
         print " \nNo new jobs"
         return 0
 
+    #-----------------------------------------------------------------------------
     # 2. reads the content of the nmpi_job
-    # print nmpi_job['status']                       #: u'submitted', 
-    # print nmpi_job['hardware_config']              #: u'', 
-    # print nmpi_job['experiment_description']       #: u'import pyNN.nest as sim\r\n\r\nsim.setup()\r\n\r\np = sim.Population(100000, sim.IF_cond_exp())\r\n\r\nsim.run(10.0)\r\n\r\np.write_data("output_data100000.pkl")\r\n\r\nsim.end()\r\n', 
-    # print nmpi_job['log']                          #: u'bad stuff happened'
-    # print nmpi_job['timestamp_submission']         #: u'2014-12-20T12:25:02.012200', 
-    # print nmpi_job['project']                      #: u'/api/v1/project/1/', 
-    # print nmpi_job['timestamp_completion']         #: u'2014-12-20T12:25:02.012200', 
-    # print nmpi_job['user']                         #: u'/api/v1/user/do/', 
-    # print nmpi_job['hardware_platform']            #: u'localhost', 
-    # print nmpi_job['id']                           #: 3, 
-    # print nmpi_job['resource_uri']                 #: u'/api/v1/queue/3/'
+    print nmpi_job['status']                       #: u'submitted', 
+    print nmpi_job['hardware_config']              #: u'', 
+    print nmpi_job['experiment_description']       #: u'import pyNN.nest as sim\r\n\r\nsim.setup()\r\n\r\np = sim.Population(100000, sim.IF_cond_exp())\r\n\r\nsim.run(10.0)\r\n\r\np.write_data("output_data100000.pkl")\r\n\r\nsim.end()\r\n', 
+    print nmpi_job['log']                          #: u'bad stuff happened'
+    print nmpi_job['timestamp_submission']         #: u'2014-12-20T12:25:02.012200', 
+    print nmpi_job['project']                      #: u'/api/v1/project/1/', 
+    print nmpi_job['timestamp_completion']         #: u'2014-12-20T12:25:02.012200', 
+    print nmpi_job['user']                         #: u'/api/v1/user/do/', 
+    print nmpi_job['hardware_platform']            #: u'localhost', 
+    print nmpi_job['id']                           #: 3, 
+    print nmpi_job['resource_uri']                 #: u'/api/v1/queue/3/'
     # print nmpi_job['input_data'][0]['url']         #: [ {"resource_uri": "", "url": "http://example.com/input_data"}, ... ]
 
+    #-----------------------------------------------------------------------------
     # 3. creates a folder for the nmpi_job
     # working directory in .../nmpi/job_<id>/
     job_folder_name = "job_" + str(nmpi_job['id'])
-    workdir = '%s/%s/' % ( WORK_FILE_ENDPOINT, job_folder_name )
+    workdir = '%s/%s/' % ( config['WORK_FILE_ENDPOINT'], job_folder_name )
     print "Workdir:",workdir
     if not os.path.exists(workdir):
         os.makedirs(workdir)
@@ -167,6 +165,7 @@ def main():
     job_exe = "run.py" #"experiment_" + str(nmpi_job['id']) + ".py"
     job_end_exe = workdir+job_exe
 
+    #-----------------------------------------------------------------------------
     # 4. tries to git clone a repository supplied in the nmpi_job description, if it does not work it create an executable file out
     try:
         # Check the experiment_description for a git url (clone it into the workdir) or a script (create a file into the workdir)
@@ -179,30 +178,37 @@ def main():
         job_exe_file.write( nmpi_job['experiment_description'] )
         job_exe_file.close() 
 
+    #-----------------------------------------------------------------------------
     # 5. retrieves eventual additional input DataItem
     # nmpi is assuming that the script posted knows the input files are in the same folder
     if 'input_data' in nmpi_job and len(nmpi_job['input_data']):
         for indata in nmpi_job['input_data']:
+            print indata['url']
             r = requests.get(indata['url'])
             # create input_data file
             path = urlparse.urlsplit(indata['url']).path
+            print path
             filename = posixpath.basename(path)
             if len(r.content):
                 inputfile = open( workdir+filename, 'wb' )
                 inputfile.write( r.content )
                 inputfile.close()
 
+    #-----------------------------------------------------------------------------
     # 6. performs the simulation in a protected environment
     # ...
 
-    # 7. submits the job to the cluster with SAGA using a unique account 'nmpi'
+    #-----------------------------------------------------------------------------
+    # 7. submits the job to the cluster with SAGA
     #    Set all relevant parameters as in http://saga-project.github.io/saga-python/doc/library/job/index.html
     #    http://saga-project.github.io/saga-python/doc/tutorial/part5.html
     # A job.Description object describes the executable/application and its requirements
     job_desc = saga.job.Description()
     # parameters
     job_desc.working_directory = workdir
-    job_desc.executable        = JOB_EXECUTABLE
+    job_desc.spmd_variation    = "mpi" # to be commented out if not using MPI
+    job_desc.executable        = config['JOB_EXECUTABLE']
+    job_desc.queue             = config['JOB_QUEUE']
     job_desc.arguments         = [ job_end_exe, nmpi_job['hardware_config'] ]
     job_desc.output            = "saga_" + str(nmpi_job['id']) + '.out'
     job_desc.error             = "saga_" + str(nmpi_job['id']) + '.err'
@@ -210,7 +216,7 @@ def main():
 
     # A job.Service object represents the resource manager.
     # 'local' adaptor to represent the local machine
-    service = saga.job.Service( JOB_SERVICE_ADAPTOR )
+    service = saga.job.Service( config['JOB_SERVICE_ADAPTOR'] )
 
     # A job is created on a service (resource manager) using the job description
     job = service.create_job( job_desc )
@@ -232,6 +238,7 @@ def main():
     nmpi_job = job_states[job.get_state()](nmpi_job, desc, "")
 
 
+    #-----------------------------------------------------------------------------
     # 8. waits for the answer and updates the log and status of the nmpi_job
     job.wait()
 
@@ -239,6 +246,7 @@ def main():
     print "Job State : %s" % (job.state)
     print "Exitcode  : %s" % (job.exit_code)
 
+    #-----------------------------------------------------------------------------
     # 9. zips the whole nmpi_job folder (for the moment) and adds it to the list of nmpi_job output data
     zipf = zipfile.ZipFile( workdir+job_folder_name+'.zip', 'w', zipfile.ZIP_STORED, True ) # allowZip64
     zipdir( workdir, zipf )
@@ -246,7 +254,7 @@ def main():
     # append the new output to the list of item data and retrieve it 
     # by POSTing to the DataItem list resource 
     try:
-      r = requests.post( NMPI_ENDPOINT+"/api/v1/dataitem/", data=json.dumps({"url": workdir+job_folder_name+'.zip'}), headers={"content-type":"application/json"}, auth=AUTH )
+      r = requests.post( config['NMPI_ENDPOINT']+"/api/v1/dataitem/", data=json.dumps({"url": workdir+job_folder_name+'.zip'}), headers={"content-type":"application/json"}, auth=AUTH )
     except ValueError, ex:
         print "An exception occured: (%s) %s " % (ex.type, (str(ex)))
         print " \n*** Backtrace:\n %s" % ex.traceback
@@ -257,8 +265,9 @@ def main():
             nmpi_job['output_data'].append( {"url": workdir+job_folder_name+'.zip'} )
         else:
             nmpi_job['output_data'] = [ {"url": workdir+job_folder_name+'.zip'} ]
-        job_put_log( nmpi_job, "NMPI log", "Added output_data in the working directory" )
+        put_job_log( nmpi_job, "NMPI log", "Added output_data in the working directory" )
 
+    #-----------------------------------------------------------------------------
     # 10. final nmpi_job status modification to 'finished' or 'error'
     if   job.get_state() == saga.job.DONE :
         desc = "NMPI: job "+str(job.id)+" finished"

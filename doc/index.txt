@@ -16,7 +16,6 @@ queue, and by the hardware systems to take jobs off the queue and to post the re
 .. toctree::
    :maxdepth: 2
 
-   installation
    platform_users
    platform_developers
 

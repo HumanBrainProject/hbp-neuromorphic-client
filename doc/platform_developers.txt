@@ -9,7 +9,7 @@ submits them to SLURM, and then posts the results back to the queue server on jo
 Installation
 ============
 
-Clone the Git repository:
+Clone the Git repository::
 
     $ git clone https://bitbucket.org/apdavison/nmpi.git
 
@@ -18,6 +18,8 @@ one for Manchester (send your Bitbucket username to Andrew Davison). If this is 
 repository elsewhere.
 
 Install the requirements and the Python package. We strongly recommend using virtualenv or Anaconda.
+
+::
 
     $ cd nmpi/nmpi_client
     $ pip install -r requirements.txt

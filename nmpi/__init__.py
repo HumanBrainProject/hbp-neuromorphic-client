@@ -1,1 +1,1 @@
-from nmpi_user import *
+from nmpi_user import Client

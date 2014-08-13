@@ -68,6 +68,7 @@ class Client(object):
                             headers={"content-type": "application/json"})
         if not req.ok:
             self._handle_error(req)
+        return req.json()
 
     def create_project(self, short_name, full_name=None, description=None):
         """
@@ -123,17 +124,24 @@ class Client(object):
         project_uri = self.get_project_uri(project)
         if project_uri is None:
             raise Exception("Project '%s' does not exist. You must first create it." % project)
-        with open(source, "rb") as fp:
-            source_code = fp.read()
+        if os.path.exists(source):
+            with open(source, "rb") as fp:
+                source_code = fp.read()
+        else:
+            source_code = source
         job = {
             'experiment_description': source_code,
-            'hardware_config': platform,
-            'hardware_platform': 'localhost',
+            'hardware_platform': platform,
             'project': project_uri,
             'user': '/api/v1/user/' + self.auth[0]
         }
-        self._post(self.resource_map["queue"], job)
+        if inputs is not None:
+            job['input_data'] = [self.create_data_item(input) for input in inputs]
+        if config is not None:
+            job['hardware_config'] = config
+        result = self._post(self.resource_map["queue"], job)
         print("Job submitted")
+        return result["id"]
 
     def job_status(self, job_id):
         """
@@ -177,3 +185,8 @@ class Client(object):
             urlretrieve(url, local_filename)
             filenames.append(local_filename)
         return filenames
+
+    def create_data_item(self, url):
+        data_item = {"url": url}
+        result = self._post(self.resource_map["dataitem"], data_item)
+        return result["resource_uri"]

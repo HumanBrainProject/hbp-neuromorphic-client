@@ -1,0 +1,24 @@
+==============================================================================
+Documentation of the Python client for the HBP Neuromorphic Computing Platform
+==============================================================================
+
+The Neuromorphic Computing Platform of the `Human Brain Project`_ contains two very different neuromorphic hardware
+systems - NM-PM1 ("physical model") and NM-MC1 ("many core") - but has a single interface.
+
+Jobs are submitted to a queue server, then executed on one of the neuromorphic systems. On job completion, the user
+may retrieve the results of the simulation/emulation.
+
+There are several ways of interacting with the queue server. This document describes the Python client, which allows
+scripted access to the Platform. The same client software is used both by end users for submitting jobs to the
+queue, and by the hardware systems to take jobs off the queue and to post the results.
+
+
+.. toctree::
+   :maxdepth: 2
+
+   installation
+   platform_users
+   platform_developers
+
+
+.. _`Human Brain Project`: http://www.humanbrainproject.eu

@@ -31,7 +31,7 @@ from sh import git
 from contextlib import closing
 from zipfile import ZipFile, ZIP_DEFLATED
 
-sys.path.append('./nmpi_client')
+#sys.path.append('./nmpi_client')
 import nmpi
 
 
@@ -92,7 +92,7 @@ def load_config( fullpath ):
             # leave out comment as python/bash
             if not line.startswith('#') and len(line)>=5:
                 (key, val) = line.split('=')
-                conf[key] = val
+                conf[key] = val.strip()
     return conf
 
 
@@ -103,18 +103,18 @@ def load_config( fullpath ):
 def main():
     # set parameters
     config = load_config( "./saga.cfg" )
-    print config['AUTH_USER']
-    print config['AUTH_PASS']
-    print config['NMPI_HOST']
-    print config['NMPI_API']
-    print config['NMPI_ENDPOINT']
-    print config['NMPI_NEXT']
-    print config['NMPI_NEXTENDPOINT']
-    print config['WORK_HOST']
-    print config['WORK_DIR']
-    print config['WORK_FILE_ENDPOINT']
-    print config['JOB_EXECUTABLE']
-    print config['JOB_SERVICE_ADAPTOR']
+    # print config['AUTH_USER']
+    # print config['AUTH_PASS']
+    # print config['NMPI_HOST']
+    # print config['NMPI_API']
+    # print config['NMPI_ENDPOINT']
+    # print config['NMPI_NEXT']
+    # print config['NMPI_NEXTENDPOINT']
+    # print config['WORK_HOST']
+    # print config['WORK_DIR']
+    # print config['WORK_FILE_ENDPOINT']
+    # print config['JOB_EXECUTABLE']
+    # print config['JOB_SERVICE_ADAPTOR']
 
     #-----------------------------------------------------------------------------
     # 1. it uses the nmpi api to retrieve the next nmpi_job (FIFO of nmpi_job with status='submitted')
@@ -156,7 +156,7 @@ def main():
     if not os.path.exists(workdir):
         os.makedirs(workdir)
     # NOTE: This script assumes that, at the end of this step, a file called run.py exists!!!
-    job_exe = "run.py" #"experiment_" + str(nmpi_job['id']) + ".py"
+    job_exe = "run.py"
     job_end_exe = workdir+job_exe
 
     #-----------------------------------------------------------------------------
@@ -164,7 +164,7 @@ def main():
     try:
         # Check the experiment_description for a git url (clone it into the workdir) or a script (create a file into the workdir)
         # URL: use git clone
-        git.clone( nmpi_job['experiment_description'], workdir ) #, _err=process_error ) 
+        git.clone( nmpi_job['experiment_description'], workdir )
     except sh.ErrorReturnCode_128 or sh.ErrorReturnCode:
         # SCRIPT: create file (in the current directory)
         print("NMPI: The experiment_description is not a valid URL (e.g. not a git repository, conflicting folder names). Defaulting to script ...")
@@ -190,17 +190,17 @@ def main():
     job_desc = saga.job.Description()
     # parameters
     job_desc.working_directory = workdir
-    job_desc.spmd_variation    = "mpi" # to be commented out if not using MPI
+    # job_desc.spmd_variation    = "MPI" # to be commented out if not using MPI
     job_desc.executable        = config['JOB_EXECUTABLE']
     job_desc.queue             = config['JOB_QUEUE']
-    job_desc.arguments         = [ job_end_exe ]
+    job_desc.arguments         = [ job_end_exe, '1' ]
     job_desc.output            = "saga_" + str(nmpi_job['id']) + '.out'
     job_desc.error             = "saga_" + str(nmpi_job['id']) + '.err'
     # job_desc.total_cpu_count
-    # job_desc.number_of_processes
+    # job_desc.number_of_processes = 1
     # job_desc.processes_per_host
     # job_desc.threads_per_process
-    # job_desc.wall_time_limit
+    # job_desc.wall_time_limit = 1
     # job_desc.total_physical_memory
     # print job_desc
 

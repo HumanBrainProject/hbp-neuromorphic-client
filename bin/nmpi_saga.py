@@ -91,8 +91,8 @@ def load_config( fullpath ):
         for line in f:
             # leave out comment as python/bash
             if not line.startswith('#') and len(line)>=5:
-                (key, val) = line.split()
-                conf[key] = val.strip('"')
+                (key, val) = line.split('=')
+                conf[key] = val
     return conf
 
 
@@ -103,18 +103,18 @@ def load_config( fullpath ):
 def main():
     # set parameters
     config = load_config( "./saga.cfg" )
-    # print config['AUTH_USER']
-    # print config['AUTH_PASS']
-    # print config['NMPI_HOST']
-    # print config['NMPI_API']
-    # print config['NMPI_ENDPOINT']
-    # print config['NMPI_NEXT']
-    # print config['NMPI_NEXTENDPOINT']
-    # print config['WORK_HOST']
-    # print config['WORK_DIR']
-    # print config['WORK_FILE_ENDPOINT']
-    # print config['JOB_EXECUTABLE']
-    # print config['JOB_SERVICE_ADAPTOR']
+    print config['AUTH_USER']
+    print config['AUTH_PASS']
+    print config['NMPI_HOST']
+    print config['NMPI_API']
+    print config['NMPI_ENDPOINT']
+    print config['NMPI_NEXT']
+    print config['NMPI_NEXTENDPOINT']
+    print config['WORK_HOST']
+    print config['WORK_DIR']
+    print config['WORK_FILE_ENDPOINT']
+    print config['JOB_EXECUTABLE']
+    print config['JOB_SERVICE_ADAPTOR']
 
     #-----------------------------------------------------------------------------
     # 1. it uses the nmpi api to retrieve the next nmpi_job (FIFO of nmpi_job with status='submitted')
@@ -191,9 +191,9 @@ def main():
     # parameters
     job_desc.working_directory = workdir
     job_desc.spmd_variation    = "mpi" # to be commented out if not using MPI
-    job_desc.executable        = "/bin/echo" #config['JOB_EXECUTABLE']
+    job_desc.executable        = config['JOB_EXECUTABLE']
     job_desc.queue             = config['JOB_QUEUE']
-    job_desc.arguments         = ["hello saga"] #[ job_end_exe, "nest", "1", "param/defaults", "'test'" ] #nmpi_job['hardware_config'] ]
+    job_desc.arguments         = [ job_end_exe ]
     job_desc.output            = "saga_" + str(nmpi_job['id']) + '.out'
     job_desc.error             = "saga_" + str(nmpi_job['id']) + '.err'
     # job_desc.total_cpu_count

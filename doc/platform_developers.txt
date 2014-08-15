@@ -25,13 +25,66 @@ Install the requirements and the Python package. We strongly recommend using vir
     $ pip install -r requirements.txt
     $ python setup.py install
 
-This installs the `nmpi` Python package and puts an executable script, :file:`nmpi_saga.py` in the :file:`bin`
-directory of your virtualenv.
+This installs the `nmpi` Python package and puts an executable script, :file:`nmpi_saga.py` with its configuration :file:`saga.cfg`, in the :file:`bin` directory of your virtualenv.
 
 
 Configuration
 =============
 
+The script :file:`nmpi_saga.py` uses the nmpi python client to the api to retrieve the next nmpi job from the queue, it reads the content of the job, creates a folder for it. From the job description, it tries to treat it as a git repository. If it does not work it creates an executable file. Additionally, it retrieves eventual input_data.
+
+Then the script performs the simulation in a protected environment. It submits the job to an underlying job queueing system and waits for the answer, and updates the log and status of the job. 
+
+Finally, the script zips the whole nmpi job folder and adds it to the list of job output_data.
+
+The script needs a set of strings to be configured in order to execute the steps above. The companion configuration file :file:`saga.cfg` contains all of them. In principle it should not be necessary to edit the script :file:`nmpi_saga.py`.
+
+All values in the configuration script are supplied as *KEY=value* pairs that will be read at the beginning of the saga script.
+
+As for all the interaction with the API, a username and password have to be specified:
+
+.. code-block:: python
+
+    # User
+    AUTH_USER=nmpi
+    AUTH_PASS=password
+
+The address of the remote nmpi job server and next job are then given
+
+.. code-block:: python
+
+    # NPI addresses
+    NMPI_HOST=157.136.240.232
+    NMPI_API=/api/v1/
+    NMPI_ENDPOINT=http://157.136.240.232
+    NMPI_NEXT=queue/submitted/next/
+    NMPI_NEXTENDPOINT=http://157.136.240.232/api/v1/queue/submitted/next/
+
+together with local directories used for storing the project during execution and for the results:
+
+.. code-block:: python
+
+    # Change WORK_HOST to the machine you want to run this on.
+    WORK_HOST=/home/dguarino/localhost
+
+    # This refers to your working directory on 'WORK_HOST'. If you use a
+    # cluster for 'WORK_HOST', make sure this points to a shared filesystem.
+    WORK_DIR=nmpi
+    WORK_FILE_ENDPOINT=/home/dguarino/localhost/nmpi
+    ZIPFILE_ENDPOINT=/home/dguarino/localhost/nmpi
+
+Then the executable that will be actually invoked by the queueing system is given, with all the additional parameters.
+
+.. code-block:: python
+
+    # location of the executable that will be called for all scripts:
+    JOB_EXECUTABLE=/usr/bin/python
+    JOB_QUEUE=intel
+
+    # 'local' adaptor represents the local machine
+    JOB_SERVICE_ADAPTOR=slurm://localhost
+
+These last set of variable is suited for basic interaction and will be probably extended to cope with additional needs.
 
 
 Running the SAGA script
@@ -44,4 +97,12 @@ launched periodically using cron in production.
 Configuring cron
 ================
 
+We should enable the cron daemon to call our saga script.
 
+In the /etc directory there are probably already sub directories called 'cron.hourly', 'cron.daily', 'cron.weekly' and 'cron.monthly' but probably these solutions are not the one fitting the needs of a job queueing system. 
+
+We can edit a crontab, strting from the one in /etc/crontab. For example, to call the :file:`nmpi_saga.py` every five minutes:
+
+    # min hour mday month wday command
+    */5 * * * * /path/to/nmpi_saga.py
+  

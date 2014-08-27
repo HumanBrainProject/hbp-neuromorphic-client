@@ -15,7 +15,6 @@ import time
 import datetime
 
 
-
 class Client(object):
     """
     Client for interacting with the Neuromorphic Computing Platform of the Human Brain Project.
@@ -45,7 +44,11 @@ class Client(object):
         """
         Deal with requests that return an error code (404, 500, etc.)
         """
-        raise Exception("Error %s: %s" % (request.status_code, request.json()["error_message"]))
+        try:
+            errmsg = request.json()["error_message"]
+        except ValueError:
+            errmsg = request.content
+        raise Exception("Error %s: %s" % (request.status_code, errmsg))
 
     def _query(self, resource_uri, verbose=False):
         """
@@ -53,14 +56,14 @@ class Client(object):
         """
         req = requests.get(self.server + resource_uri, auth=self.auth)
         if req.ok:
-	    if "objects" in req.json():
+            if "objects" in req.json():
                 objects = req.json()["objects"]
                 if verbose:
                     return objects
                 else:
                     return [obj["resource_uri"] for obj in objects]
             else:
-		return req.json()
+                return req.json()
         else:
             self._handle_error(req)
 
@@ -76,23 +79,21 @@ class Client(object):
             self._handle_error(req)
         return req.json()
 
-
-    def _put(self, resource_uri, data, log_description, log_text ):
-	"""
-	Updates a resource (with desc).
-	"""
-	ts = time.time()
-	st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
-	data['timestamp_completion'] = st
-	data['log'] += "\n\n" + log_description + "\n-----------------\n" + st + "\n-----------------\n" + log_text
-	req = requests.put( self.server + resource_uri, 
-	                    data=json.dumps(data), 
-	                    auth=self.auth,
-	                    headers={"content-type":"application/json"} )
+    def _put(self, resource_uri, data, log_description, log_text):
+        """
+        Updates a resource (with desc).
+        """
+        ts = time.time()
+        st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+        data['timestamp_completion'] = st
+        data['log'] += "\n\n" + log_description + "\n-----------------\n" + st + "\n-----------------\n" + log_text
+        req = requests.put(self.server + resource_uri,
+                           data=json.dumps(data),
+                           auth=self.auth,
+                           headers={"content-type": "application/json"})
         if not req.ok:
             self._handle_error(req)
-	return data
-
+        return data
 
     def create_project(self, short_name, full_name=None, description=None):
         """
@@ -143,7 +144,7 @@ class Client(object):
 
     def submit_job(self, source, platform, project, config=None, inputs=None):
         """
-        
+
         """
         project_uri = self.get_project_uri(project)
         if project_uri is None:
@@ -169,13 +170,13 @@ class Client(object):
 
     def job_status(self, job_id):
         """
-        
+
         """
         return self.get_job(job_id)["status"]
 
     def get_job(self, job_id):
         """
-        
+
         """
         for resource_type in ("queue", "results"):
             for job in self._query(self.resource_map[resource_type], verbose=True):
@@ -185,35 +186,33 @@ class Client(object):
 
     def queued_jobs(self, project_name=None, verbose=False):
         """
-        
+
         """
         return self._query(self.resource_map["queue"] + "/submitted/", verbose=verbose)
 
     def completed_jobs(self, project_name=None, verbose=False):
         """
-        
+
         """
         return self._query(self.resource_map["results"], verbose=verbose)
 
-
     def download_data_url(self, job, local_dir=".", include_input_data=False):
-	"""
-	          
-	"""
-	filenames = []
-	datalist = job["output_data"]
-	if include_input_data:
-	   datalist.extend(job["input_data"])
-	for dataitem in datalist:
-	    url = dataitem["url"]
-	    (scheme, netloc, path, params, query, fragment) = urlparse(url)
-	    if not scheme:
-	        url = "file://" + url
-	    local_filename = os.path.join(local_dir, os.path.split(path)[1])
-	    urlretrieve(url, local_filename)
-	    filenames.append(local_filename)
-	return filenames
+        """
 
+        """
+        filenames = []
+        datalist = job["output_data"]
+        if include_input_data:
+           datalist.extend(job["input_data"])
+        for dataitem in datalist:
+            url = dataitem["url"]
+            (scheme, netloc, path, params, query, fragment) = urlparse(url)
+            if not scheme:
+                url = "file://" + url
+            local_filename = os.path.join(local_dir, os.path.split(path)[1])
+            urlretrieve(url, local_filename)
+            filenames.append(local_filename)
+        return filenames
 
     def create_data_item(self, url):
         data_item = {"url": url}
@@ -221,31 +220,30 @@ class Client(object):
         return result["resource_uri"]
 
 
-
 class HardwareClient(Client):
-	"""
-        Client for interacting from a specific hardware, with the Neuromorphic Computing Platform of the Human Brain Project.
+    """
+    Client for interacting from a specific hardware, with the Neuromorphic Computing Platform of the Human Brain Project.
 
-	This includes submitting jobs, tracking job status, retrieving the results of completed jobs,
-	and creating and administering projects.
+    This includes submitting jobs, tracking job status, retrieving the results of completed jobs,
+    and creating and administering projects.
 
-	Arguments
-	---------
+    Arguments
+    ---------
 
-	username, password : credentials for accessing the platform
-	entrypoint : the base URL of the platform. Generally the default value should be used.
+    username, password : credentials for accessing the platform
+    entrypoint : the base URL of the platform. Generally the default value should be used.
 
-	"""
+    """
 
-	def __init__(self, username, password, entrypoint, platform):
-		Client.__init__(self, username, password, entrypoint)
-		self.platform = platform
+    def __init__(self, username, password, entrypoint, platform):
+        Client.__init__(self, username, password, entrypoint)
+        self.platform = platform
 
-	def get_next_job(self):
-	        """
-		Get the nex job by oldest date in the queue.
-		"""
-		print self.platform
-        	job = self._query(self.resource_map["queue"] + "/submitted/next/"+self.platform+"/", verbose=False)
-		return job
-		raise Exception("No pending jobs")
+    def get_next_job(self):
+        """
+        Get the nex job by oldest date in the queue.
+        """
+        print self.platform
+        job = self._query(self.resource_map["queue"] + "/submitted/next/"+self.platform+"/", verbose=False)
+        return job
+        raise Exception("No pending jobs")

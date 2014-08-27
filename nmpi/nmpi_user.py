@@ -84,8 +84,8 @@ class Client(object):
         Updates a resource (with desc).
         """
         ts = time.time()
-        st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
-        data['timestamp_completion'] = st
+        st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%dT%H:%M:%S')
+        data['timestamp_completion'] = unicode(st)   # not sure this should go here, could be other updates possible
         data['log'] += "\n\n" + log_description + "\n-----------------\n" + st + "\n-----------------\n" + log_text
         req = requests.put(self.server + resource_uri,
                            data=json.dumps(data),

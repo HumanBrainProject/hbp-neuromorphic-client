@@ -52,8 +52,8 @@ def job_pending(job):
 def job_running(job):
     job['status'] = "running"
     ts = time.time()
-    st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
-    job['timestamp_submission'] = st
+    st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%dT%H:%M:%S')
+    job['timestamp_submission'] = unicode(st)
     return job
 
 
@@ -137,10 +137,10 @@ def build_job_description(nmpi_job, config):
 def run_job(job_desc, service):
     """Submits a job to the cluster with SAGA."""
     # A job is created on a service (resource manager) using the job description
-    job = service.create_job(job_desc)
+    saga_job = service.create_job(job_desc)
     # Run the job
-    job.run()
-    return job
+    saga_job.run()
+    return saga_job
 
 
 def get_client(config):
@@ -211,18 +211,18 @@ def get_data(hc, nmpi_job):
         filelist = hc.download_data_url(nmpi_job, ".", True)  # shouldn't this be downloading to working directory, not "."?
 
 
-def update_status(hc, job):
+def update_status(hc, saga_job, nmpi_job):
     # Check STATUS and use again the nmpi api to PUT a status modification
-    print "Job ID    : %s" % (job.id)
+    print "Job ID    : %s" % (saga_job.id)
     # Status
-    if job.get_state() == saga.job.PENDING:
-        desc = "NMPI: job " + str(job.id)+" pending"
-    elif job.get_state() == saga.job.RUNNING:
-        desc = "NMPI: job " + str(job.id) + " running"
+    if saga_job.get_state() == saga.job.PENDING:
+        desc = "NMPI: job " + str(saga_job.id)+" pending"
+    elif saga_job.get_state() == saga.job.RUNNING:
+        desc = "NMPI: job " + str(saga_job.id) + " running"
     else:
-        desc = "NMPI: job " + str(job.id) + " error"
+        desc = "NMPI: job " + str(saga_job.id) + " error"
     # PUT status
-    nmpi_job = job_states[job.get_state()](nmpi_job)
+    nmpi_job = job_states[saga_job.get_state()](nmpi_job)
     # update remote resource
     hc._put(nmpi_job['resource_uri'], nmpi_job, desc, "")
     return nmpi_job
@@ -331,16 +331,16 @@ def main():
     #-----------------------------------------------------------------------------
     # 7. submits the job to the cluster with SAGA
 
-    job = run_job(job_desc, service)
+    saga_job = run_job(job_desc, service)
 
-    nmpi_job = update_status(hc, job)
+    nmpi_job = update_status(hc, saga_job, nmpi_job)
 
     #-----------------------------------------------------------------------------
     # 8. waits for the answer and updates the log and status of the nmpi_job
-    job.wait()
+    saga_job.wait()
 
     # Get some info about the job
-    print "Job State : %s" % (job.state)
+    print "Job State : %s" % (saga_job.state)
     #print "Exitcode  : %s" % (job.exit_code)
 
     #-----------------------------------------------------------------------------
@@ -351,7 +351,7 @@ def main():
     #-----------------------------------------------------------------------------
     # 10. final nmpi_job status modification to 'finished' or 'error'
 
-    update_final_service(hc, job, nmpi_job, job_desc)
+    update_final_service(hc, saga_job, nmpi_job, job_desc)
 
     service.close()
 

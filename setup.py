@@ -10,7 +10,7 @@ setup(
     name = "nmpi_client",
     version = '0.1.0dev',
     packages = ['nmpi'],
-    scripts = ['bin/nmpi_saga.py'],
+    scripts = ['bin/nmpi_run.py'],
     install_requires=['requests',],
     author = "Andrew P. Davison and Domenico Guarino",
     author_email = "andrew.davison@unic.cnrs-gif.fr",

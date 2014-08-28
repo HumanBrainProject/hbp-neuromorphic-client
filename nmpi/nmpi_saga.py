@@ -121,7 +121,7 @@ def build_job_description(nmpi_job, config):
     # A job.Description object describes the executable/application and its requirements
     job_desc = saga.job.Description()
     job_id = nmpi_job['id']
-    job_desc.working_directory = os.path.join(config['WORK_FILE_ENDPOINT'], 'job_%s' % job_id)
+    job_desc.working_directory = os.path.join(config['WORKING_DIRECTORY'], 'job_%s' % job_id)
     # job_desc.spmd_variation    = "MPI" # to be commented out if not using MPI
     job_desc.executable = config['JOB_EXECUTABLE']
     job_desc.queue = config['JOB_QUEUE']  # aka SLURM "partition"
@@ -149,7 +149,7 @@ def run_job(job_desc, service):
 def get_client(config):
     hc = nmpi.HardwareClient(username=config['AUTH_USER'],
                              password=config['AUTH_PASS'],
-                             entrypoint=config['NMPI_ENDPOINT'] + config['NMPI_API'],
+                             entrypoint=config['NMPI_HOST'] + config['NMPI_API'],
                              platform="localhost")
     return hc
 
@@ -241,7 +241,7 @@ def handle_output_data(hc, config, job_desc, nmpi_job):
     zips the whole nmpi_job folder (for the moment) and adds it to the list of nmpi_job output data
     """
     # can we perhaps add the zipname to the job_desc earlier in the process, to avoid passing config here
-    zipname = os.path.join(config['ZIPFILE_ENDPOINT'],  os.path.basename(job_desc.working_directory) + '.zip')
+    zipname = os.path.join(config['DATA_DIRECTORY'],  os.path.basename(job_desc.working_directory) + '.zip')
     zipdir(job_desc.working_directory, zipname)
     # append the new output to the list of item data and retrieve it
     # by POSTing to the DataItem list resource
@@ -275,18 +275,6 @@ def update_final_service(hc, job, nmpi_job, job_desc):
 def main():
     # set parameters
     config = load_config( "./saga.cfg" )
-    # print config['AUTH_USER']
-    # print config['AUTH_PASS']
-    # print config['NMPI_HOST']
-    # print config['NMPI_API']
-    # print config['NMPI_ENDPOINT']
-    # print config['NMPI_NEXT']
-    # print config['NMPI_NEXTENDPOINT']
-    # print config['WORK_HOST']
-    # print config['WORK_DIR']
-    # print config['WORK_FILE_ENDPOINT']
-    # print config['JOB_EXECUTABLE']
-    # print config['JOB_SERVICE_ADAPTOR']
 
     hc = get_client(config)
 
@@ -304,18 +292,7 @@ def main():
 
     #-----------------------------------------------------------------------------
     # 2. create a Saga job description
-    # print nmpi_job['status']                       #: u'submitted', 
-    # print nmpi_job['hardware_config']              #: u'', 
-    # print nmpi_job['experiment_description']       #: u'import pyNN.nest as sim\r\n\r\nsim.setup()\r\n\r\np = sim.Population(100000, sim.IF_cond_exp())\r\n\r\nsim.run(10.0)\r\n\r\np.write_data("output_data100000.pkl")\r\n\r\nsim.end()\r\n', 
-    # print nmpi_job['log']                          #: u'bad stuff happened'
-    # print nmpi_job['timestamp_submission']         #: u'2014-12-20T12:25:02.012200', 
-    # print nmpi_job['project']                      #: u'/api/v1/project/1/', 
-    # print nmpi_job['timestamp_completion']         #: u'2014-12-20T12:25:02.012200', 
-    # print nmpi_job['user']                         #: u'/api/v1/user/do/', 
-    # print nmpi_job['hardware_platform']            #: u'localhost', 
-    # print nmpi_job['id']                           #: 3, 
     print nmpi_job['resource_uri']                 #: u'/api/v1/queue/3/'
-    # print nmpi_job['input_data'][0]['url']         #: [ {"resource_uri": "", "url": "http://example.com/input_data"}, ... ]
     job_desc = build_job_description(nmpi_job, config)
 
     #-----------------------------------------------------------------------------

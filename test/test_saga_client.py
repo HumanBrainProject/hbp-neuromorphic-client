@@ -174,10 +174,10 @@ class FullStackTest(unittest.TestCase):
         self._submit_test_job()
         nmpi_job = nmpi_saga.get_next_job(self.hardware_client)
         config = {
-            'WORK_FILE_ENDPOINT': tmpdir,
+            'WORKING_DIRECTORY': tmpdir,
             'JOB_EXECUTABLE': '/usr/bin/python',
             'JOB_QUEUE': 'intel',
-            'ZIPFILE_ENDPOINT': tmpdir
+            'DATA_DIRECTORY': tmpdir
         }
         job_desc = nmpi_saga.build_job_description(nmpi_job, config)
         nmpi_saga.get_code(nmpi_job, job_desc)

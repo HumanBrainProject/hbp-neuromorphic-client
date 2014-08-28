@@ -46,32 +46,26 @@ As for all the interaction with the API, a username and password have to be spec
 .. code-block:: python
 
     # User
-    AUTH_USER=nmpi
-    AUTH_PASS=password
+    AUTH_USER=<username>
+    AUTH_PASS=<password>
 
-The address of the remote nmpi job server and next job are then given
+The address of the remote NMPI job server is then specified:
 
 .. code-block:: python
 
     # NPI addresses
-    NMPI_HOST=157.136.240.232
+    NMPI_HOST=http://157.136.240.232
     NMPI_API=/api/v1/
-    NMPI_ENDPOINT=http://157.136.240.232
-    NMPI_NEXT=queue/submitted/next/
-    NMPI_NEXTENDPOINT=http://157.136.240.232/api/v1/queue/submitted/next/
 
-together with local directories used for storing the project during execution and for the results:
+together with local directories used for storing the code during execution and for the results:
 
 .. code-block:: python
 
-    # Change WORK_HOST to the machine you want to run this on.
-    WORK_HOST=/home/dguarino/localhost
+    # Directory into which Python code will be downloaded/cloned
+    WORKING_DIRECTORY=/home/hbp/nmpi
 
-    # This refers to your working directory on 'WORK_HOST'. If you use a
-    # cluster for 'WORK_HOST', make sure this points to a shared filesystem.
-    WORK_DIR=nmpi
-    WORK_FILE_ENDPOINT=/home/dguarino/localhost/nmpi
-    ZIPFILE_ENDPOINT=/home/dguarino/localhost/nmpi
+    # Directory into which data files will be written
+    DATA_DIRECTORY=/home/hbp/nmpi
 
 Then the executable that will be actually invoked by the queueing system is given, with all the additional parameters.
 
@@ -79,12 +73,14 @@ Then the executable that will be actually invoked by the queueing system is give
 
     # location of the executable that will be called for all scripts:
     JOB_EXECUTABLE=/usr/bin/python
+
+    # SLURM partition to use
     JOB_QUEUE=intel
 
     # 'local' adaptor represents the local machine
     JOB_SERVICE_ADAPTOR=slurm://localhost
 
-These last set of variable is suited for basic interaction and will be probably extended to cope with additional needs.
+These last set of variables is suited for basic interaction and will be probably extended to cope with additional needs.
 
 
 Running the SAGA script
@@ -101,7 +97,7 @@ We should enable the cron daemon to call our saga script.
 
 In the /etc directory there are probably already sub directories called 'cron.hourly', 'cron.daily', 'cron.weekly' and 'cron.monthly' but probably these solutions are not the one fitting the needs of a job queueing system. 
 
-We can edit a crontab, strting from the one in /etc/crontab. For example, to call the :file:`nmpi_run.py` every five minutes:
+We can edit a crontab, starting from the one in /etc/crontab. For example, to call the :file:`nmpi_run.py` every five minutes::
 
     # min hour mday month wday command
     */5 * * * * /path/to/nmpi_run.py

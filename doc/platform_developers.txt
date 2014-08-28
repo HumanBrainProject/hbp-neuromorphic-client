@@ -25,19 +25,19 @@ Install the requirements and the Python package. We strongly recommend using vir
     $ pip install -r requirements.txt
     $ python setup.py install
 
-This installs the `nmpi` Python package and puts an executable script, :file:`nmpi_saga.py` with its configuration :file:`saga.cfg`, in the :file:`bin` directory of your virtualenv.
+This installs the `nmpi` Python package and puts an executable script, :file:`nmpi_run.py` with its configuration :file:`saga.cfg`, in the :file:`bin` directory of your virtualenv.
 
 
 Configuration
 =============
 
-The script :file:`nmpi_saga.py` uses the nmpi python client to the api to retrieve the next nmpi job from the queue, it reads the content of the job, creates a folder for it. From the job description, it tries to treat it as a git repository. If it does not work it creates an executable file. Additionally, it retrieves eventual input_data.
+The script :file:`nmpi_run.py` uses the nmpi python client to the api to retrieve the next nmpi job from the queue, it reads the content of the job, creates a folder for it. From the job description, it tries to treat it as a git repository. If it does not work it creates an executable file. Additionally, it retrieves eventual input data.
 
 Then the script performs the simulation in a protected environment. It submits the job to an underlying job queueing system and waits for the answer, and updates the log and status of the job. 
 
 Finally, the script zips the whole nmpi job folder and adds it to the list of job output_data.
 
-The script needs a set of strings to be configured in order to execute the steps above. The companion configuration file :file:`saga.cfg` contains all of them. In principle it should not be necessary to edit the script :file:`nmpi_saga.py`.
+The script needs a set of strings to be configured in order to execute the steps above. The companion configuration file :file:`saga.cfg` contains all of them. In principle it should not be necessary to edit the script :file:`nmpi_run.py`.
 
 All values in the configuration script are supplied as *KEY=value* pairs that will be read at the beginning of the saga script.
 
@@ -90,7 +90,7 @@ These last set of variable is suited for basic interaction and will be probably 
 Running the SAGA script
 =======================
 
-You will probably wish to run the script, :file:`nmpi_saga.py`, manually during testing, but it is intended to be
+You will probably wish to run the script, :file:`nmpi_run.py`, manually during testing, but it is intended to be
 launched periodically using cron in production.
 
 
@@ -101,8 +101,8 @@ We should enable the cron daemon to call our saga script.
 
 In the /etc directory there are probably already sub directories called 'cron.hourly', 'cron.daily', 'cron.weekly' and 'cron.monthly' but probably these solutions are not the one fitting the needs of a job queueing system. 
 
-We can edit a crontab, strting from the one in /etc/crontab. For example, to call the :file:`nmpi_saga.py` every five minutes:
+We can edit a crontab, strting from the one in /etc/crontab. For example, to call the :file:`nmpi_run.py` every five minutes:
 
     # min hour mday month wday command
-    */5 * * * * /path/to/nmpi_saga.py
+    */5 * * * * /path/to/nmpi_run.py
   

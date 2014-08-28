@@ -20,6 +20,7 @@
 
 import sys
 import os
+import logging
 import saga
 import time
 import datetime
@@ -34,8 +35,10 @@ from zipfile import ZipFile, ZIP_DEFLATED
 #sys.path.append('./nmpi_client')
 import nmpi
 
-
 DEFAULT_SCRIPT_NAME = "run.py"
+
+
+logger = logging.getLogger("NMPI")
 
 
 #-----------------------------------------------------------------------------
@@ -122,7 +125,7 @@ def build_job_description(nmpi_job, config):
     # job_desc.spmd_variation    = "MPI" # to be commented out if not using MPI
     job_desc.executable = config['JOB_EXECUTABLE']
     job_desc.queue = config['JOB_QUEUE']  # aka SLURM "partition"
-    job_desc.arguments = [os.path.join(workdir, DEFAULT_SCRIPT_NAME)]
+    job_desc.arguments = [os.path.join(job_desc.working_directory, DEFAULT_SCRIPT_NAME)]
     job_desc.output = "saga_" + str(job_id) + '.out'
     job_desc.error = "saga_" + str(job_id) + '.err'
     # job_desc.total_cpu_count
@@ -179,7 +182,11 @@ def create_working_directory(job_desc):
     """
     workdir = job_desc.working_directory
     if not os.path.exists(workdir):
+        logger.info("Creating directory %s" % workdir)
         os.makedirs(workdir)
+        logger.debug("Created directory %s" % workdir)
+    else:
+        logger.debug("Directory %s already exists" % workdir)
 
 
 def get_code(nmpi_job, job_desc):
@@ -196,6 +203,7 @@ def get_code(nmpi_job, job_desc):
     except sh.ErrorReturnCode_128 or sh.ErrorReturnCode:
         # SCRIPT: create file (in the current directory)
         print("NMPI: The experiment_description is not a valid URL (e.g. not a git repository, conflicting folder names). Defaulting to script ...")
+        create_working_directory(job_desc)
         job_main_script = open(job_desc.arguments[0], 'w')
         job_main_script.write(nmpi_job['experiment_description'])
         job_main_script.close()

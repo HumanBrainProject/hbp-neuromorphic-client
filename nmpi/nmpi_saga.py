@@ -326,6 +326,9 @@ def main():
     #-----------------------------------------------------------------------------
     # 8. waits for the answer and updates the log and status of the nmpi_job
     saga_job.wait()
+    # TODO: the script should not wait for the job to finish. Rather it should submit the job, and then check
+    #       whether any previously submitted jobs have completed, and update those.
+
 
     # Get some info about the job
     print "Job State : %s" % (saga_job.state)

@@ -95,7 +95,7 @@ class Client(object):
             self._handle_error(req)
         return data
 
-    def create_project(self, short_name, full_name=None, description=None):
+    def create_project(self, short_name, full_name=None, description=None, members=None):
         """
         Create a new project.
 
@@ -105,11 +105,15 @@ class Client(object):
         short_name : a unique identifier for the project, consisting of only letters, numbers and underscores.
         full_name : (optional) a longer name for the project, may contain spaces.
         description : (optional) a detailed description of the project.
+        members : (optional) a list of usernames allowed to access the project (by default the current user is in the list).
         """
+        if members == None:
+            members = [ self.auth.username ]
         project = {
             "short_name": short_name,
             "full_name": full_name,
-            "description": description
+            "description": description,
+            "members": members
         }
         self._post(self.resource_map["project"], project)
         print("Project %s created" % short_name)

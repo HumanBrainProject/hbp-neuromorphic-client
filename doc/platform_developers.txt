@@ -57,6 +57,13 @@ The address of the remote NMPI job server is then specified:
     NMPI_HOST=http://157.136.240.232
     NMPI_API=/api/v1/
 
+and the identifier for your platform:
+
+.. code-block:: python
+
+    # Identifier for your platform (e.g. "NM-PM1")
+    PLATFORM_NAME=clusteru
+
 together with local directories used for storing the code during execution and for the results:
 
 .. code-block:: python
@@ -73,6 +80,9 @@ Then the executable that will be actually invoked by the queueing system is give
 
     # location of the executable that will be called for all scripts:
     JOB_EXECUTABLE=/usr/bin/python
+
+    # Name of the PyNN backend to use (will be appended to the command line)
+    DEFAULT_PYNN_BACKEND=nest
 
     # SLURM partition to use
     JOB_QUEUE=intel

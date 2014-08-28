@@ -36,8 +36,8 @@ The experiment description must take the form of a Python script using the PyNN 
   * the URL of a public Git repository
   * the URL of a zip or tar.gz archive
   
-In the latter two cases, the respository or archive must contain a top-level file named :file:`run.py`. The script must
-accept a single command-line argument, the name of the backend (e.g. "nest", "spinnaker"). Any other parameters or
+In the latter two cases, the respository or archive must contain a top-level file named :file:`run.py`.
+**The script must accept a single command-line argument**, the name of the backend (e.g. "nest", "spinnaker"). Any other parameters or
 data files needed by the script should be provided as input files. 
 
 Input data

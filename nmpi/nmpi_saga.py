@@ -105,6 +105,7 @@ def load_config(fullpath):
             if not line.startswith('#') and len(line)>=5:
                 (key, val) = line.split('=')
                 conf[key] = val.strip()
+    logger.info("Loaded configuration file with contents: %s" % conf)
     return conf
 
 
@@ -150,7 +151,7 @@ def get_client(config):
     hc = nmpi.HardwareClient(username=config['AUTH_USER'],
                              password=config['AUTH_PASS'],
                              entrypoint=config['NMPI_HOST'] + config['NMPI_API'],
-                             platform="localhost")
+                             platform=config['PLATFORM_NAME'])
     return hc
 
 
@@ -285,7 +286,8 @@ def main():
     # 1. it uses the nmpi api to retrieve the next nmpi_job (FIFO of nmpi_job with status='submitted')
     try:
         nmpi_job = get_next_job(hc)
-    except Exception:
+    except Exception as err:
+        print(err)
         return -1
     if nmpi_job is None:
         return 0

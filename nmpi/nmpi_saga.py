@@ -126,7 +126,8 @@ def build_job_description(nmpi_job, config):
     # job_desc.spmd_variation    = "MPI" # to be commented out if not using MPI
     job_desc.executable = config['JOB_EXECUTABLE']
     job_desc.queue = config['JOB_QUEUE']  # aka SLURM "partition"
-    job_desc.arguments = [os.path.join(job_desc.working_directory, DEFAULT_SCRIPT_NAME)]
+    job_desc.arguments = [os.path.join(job_desc.working_directory, DEFAULT_SCRIPT_NAME),
+                          config['DEFAULT_PYNN_BACKEND']]  # TODO: allow choosing backend in "hardware_config
     job_desc.output = "saga_" + str(job_id) + '.out'
     job_desc.error = "saga_" + str(job_id) + '.err'
     # job_desc.total_cpu_count

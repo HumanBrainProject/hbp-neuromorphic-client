@@ -107,16 +107,14 @@ class Client(object):
         description : (optional) a detailed description of the project.
         members : (optional) a list of usernames allowed to access the project (by default the current user is in the list).
         """
-        hydrated_members = []
-        for member in members:
-            hydrated_members.append( self._query( '/api/v1/user/'+username ) )
-        if members == None:
-            members = [ {"resource_uri": '/api/v1/user/'+self.auth[0], "username":self.auth[0]} ]
+        if members is None:
+            members = [self.auth[0]]
         project = {
             "short_name": short_name,
             "full_name": full_name,
             "description": description,
-            "members": hydrated_members
+            "members": [{"resource_uri": self.resource_map["user"] + "/" + member, "username": member}
+                        for member in members]
         }
         self._post(self.resource_map["project"], project)
         print("Project %s created" % short_name)

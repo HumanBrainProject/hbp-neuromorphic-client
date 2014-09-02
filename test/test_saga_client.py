@@ -15,8 +15,9 @@ from nmpi import nmpi_saga, nmpi_user
 
 
 #ENTRYPOINT = "http://157.136.240.232/api/v1/"
-ENTRYPOINT = "http://nmpi-queue-server-apdavison.beta.tutum.io:49181/api/v1/"
+#ENTRYPOINT = "http://nmpi-queue-server-apdavison.beta.tutum.io:49181/api/v1/"
 #ENTRYPOINT = "http://192.168.59.103:49161/api/v1/"
+ENTRYPOINT = "http://127.0.0.1:8000/api/v1/"
 
 simple_test_script = r"""
 from datetime import datetime
@@ -113,7 +114,7 @@ class QueueServerInteractionTest(unittest.TestCase):
         self.user_client = nmpi_user.Client("testuser", "abc123",
                                             entrypoint=ENTRYPOINT)
         self.project_name = datetime.now().strftime("test_%Y%m%d_%H%M%S")
-        self.user_client.create_project(self.project_name)
+        self.user_client.create_project(self.project_name,members=['testuser','nmpi'])
         self.hardware_client = nmpi_user.HardwareClient(username="nmpi",
                                                         password="Poh3Eip'",
                                                         entrypoint=ENTRYPOINT,

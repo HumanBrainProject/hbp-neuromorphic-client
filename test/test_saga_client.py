@@ -15,9 +15,9 @@ from nmpi import nmpi_saga, nmpi_user
 
 
 #ENTRYPOINT = "http://157.136.240.232/api/v1/"
-#ENTRYPOINT = "http://nmpi-queue-server-apdavison.beta.tutum.io:49181/api/v1/"
+ENTRYPOINT = "http://nmpi-queue-server-apdavison.delta.tutum.io:49174/api/v1/"
 #ENTRYPOINT = "http://192.168.59.103:49161/api/v1/"
-ENTRYPOINT = "http://127.0.0.1:8000/api/v1/"
+#ENTRYPOINT = "http://127.0.0.1:8000/api/v1/"
 
 simple_test_script = r"""
 from datetime import datetime
@@ -31,7 +31,8 @@ print "done"
 """
 
 simulation_test_script = r"""
-import pyNN.nest as sim
+import sys
+exec("import pyNN.%s as sim" % sys.argv[1])
 
 sim.setup()
 
@@ -85,7 +86,7 @@ class SlurmTest(unittest.TestCase):
         # job_desc.spmd_variation    = "MPI" # to be commented out if not using MPI
         job_desc.executable = os.path.join(os.path.expanduser("~/"), "env", "nmpi_saga", "bin", "python")
         job_desc.queue = "intel"  # take from config
-        job_desc.arguments = [os.path.join(tmpdir, "run.py")]
+        job_desc.arguments = [os.path.join(tmpdir, "run.py"), "nest"]
         job_desc.output = "saga_test.out"
         job_desc.error = "saga_test.err"
 
@@ -114,7 +115,7 @@ class QueueServerInteractionTest(unittest.TestCase):
         self.user_client = nmpi_user.Client("testuser", "abc123",
                                             entrypoint=ENTRYPOINT)
         self.project_name = datetime.now().strftime("test_%Y%m%d_%H%M%S")
-        self.user_client.create_project(self.project_name,members=['testuser','nmpi'])
+        self.user_client.create_project(self.project_name, members=['testuser', 'nmpi'])
         self.hardware_client = nmpi_user.HardwareClient(username="nmpi",
                                                         password="Poh3Eip'",
                                                         entrypoint=ENTRYPOINT,
@@ -155,7 +156,7 @@ class FullStackTest(unittest.TestCase):
         self.user_client = nmpi_user.Client("testuser", "abc123",
                                             entrypoint=ENTRYPOINT)
         self.project_name = datetime.now().strftime("test_%Y%m%d_%H%M%S")
-        self.user_client.create_project(self.project_name)
+        self.user_client.create_project(self.project_name, members=['testuser', 'nmpi'])
         self.hardware_client = nmpi_user.HardwareClient(username="nmpi",
                                                         password="Poh3Eip'",
                                                         entrypoint=ENTRYPOINT,
@@ -178,7 +179,8 @@ class FullStackTest(unittest.TestCase):
             'WORKING_DIRECTORY': tmpdir,
             'JOB_EXECUTABLE': '/usr/bin/python',
             'JOB_QUEUE': 'intel',
-            'DATA_DIRECTORY': tmpdir
+            'DATA_DIRECTORY': tmpdir,
+            'DEFAULT_PYNN_BACKEND': 'nest'
         }
         job_desc = nmpi_saga.build_job_description(nmpi_job, config)
         nmpi_saga.get_code(nmpi_job, job_desc)

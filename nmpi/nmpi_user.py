@@ -249,8 +249,10 @@ class HardwareClient(Client):
         """
         Get the nex job by oldest date in the queue.
         """
-        print self.server + self.resource_map["queue"] + "/submitted/next/"+self.platform+"/"
-        job = requests.get(self.server + self.resource_map["queue"] + "/submitted/next/"+self.platform+"/", auth=self.auth)
-        if 'warning' in job:
-            job = None
-        return job
+        job_nmpi = None
+        req = requests.get(self.server + self.resource_map["queue"] + "/submitted/next/"+self.platform+"/", auth=self.auth)
+        if req.ok:
+            job_nmpi = req.json()
+        if 'warning' in job_nmpi:
+            job_nmpi = None
+        return job_nmpi

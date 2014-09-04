@@ -249,7 +249,8 @@ class HardwareClient(Client):
         """
         Get the nex job by oldest date in the queue.
         """
-        print self.platform
-        job = self._query(self.resource_map["queue"] + "/submitted/next/"+self.platform+"/", verbose=False)
+        print self.server + self.resource_map["queue"] + "/submitted/next/"+self.platform+"/"
+        job = requests.get(self.server + self.resource_map["queue"] + "/submitted/next/"+self.platform+"/", auth=self.auth)
+        if 'warning' in job:
+            job = []
         return job
-        raise Exception("No pending jobs")

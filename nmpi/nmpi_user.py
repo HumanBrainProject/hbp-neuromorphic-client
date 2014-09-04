@@ -252,5 +252,5 @@ class HardwareClient(Client):
         print self.server + self.resource_map["queue"] + "/submitted/next/"+self.platform+"/"
         job = requests.get(self.server + self.resource_map["queue"] + "/submitted/next/"+self.platform+"/", auth=self.auth)
         if 'warning' in job:
-            job = []
+            job = None
         return job

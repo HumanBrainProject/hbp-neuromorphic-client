@@ -15,8 +15,8 @@ from nmpi import nmpi_saga, nmpi_user
 
 
 #ENTRYPOINT = "http://157.136.240.232/api/v1/"
-ENTRYPOINT = "http://nmpi-queue-server-apdavison.delta.tutum.io:49174/api/v1/"
-#ENTRYPOINT = "http://192.168.59.103:49161/api/v1/"
+ENTRYPOINT = "https://nmpi-queue-server-apdavison.delta.tutum.io:49202/api/v1/"
+#ENTRYPOINT = "http://192.168.59.103:49153/api/v1/"
 #ENTRYPOINT = "http://127.0.0.1:8000/api/v1/"
 
 simple_test_script = r"""

@@ -32,9 +32,11 @@ class Client(object):
 
     def __init__(self, username, password, entrypoint="http://127.0.0.1:8000/api/v1/"):
         self.auth = (username, password)
+        self.cert = ("../../deployment/ssl/nginx.pem", "../../deployment/ssl/nginx.key")
+        self.verify = False
         (scheme, netloc, path, params, query, fragment) = urlparse(entrypoint)
         self.server = "%s://%s" % (scheme, netloc)
-        req = requests.get(entrypoint)
+        req = requests.get(entrypoint, cert=self.cert, verify=self.verify)
         if req.ok:
             self.resource_map = {name: entry["list_endpoint"] for name, entry in req.json().items()}
         else:
@@ -54,7 +56,8 @@ class Client(object):
         """
         Retrieve a resource or list of resources.
         """
-        req = requests.get(self.server + resource_uri, auth=self.auth)
+        req = requests.get(self.server + resource_uri, auth=self.auth,
+                           cert=self.cert, verify=self.verify)
         if req.ok:
             if "objects" in req.json():
                 objects = req.json()["objects"]
@@ -74,6 +77,7 @@ class Client(object):
         req = requests.post(self.server + resource_uri,
                             data=json.dumps(data),
                             auth=self.auth,
+                            cert=self.cert, verify=self.verify,
                             headers={"content-type": "application/json"})
         if not req.ok:
             self._handle_error(req)
@@ -90,6 +94,7 @@ class Client(object):
         req = requests.put(self.server + resource_uri,
                            data=json.dumps(data),
                            auth=self.auth,
+                           cert=self.cert, verify=self.verify,
                            headers={"content-type": "application/json"})
         if not req.ok:
             self._handle_error(req)
@@ -125,7 +130,8 @@ class Client(object):
 
         If you know the project name but not its URI, use ``c.get_project(c.get_project_uri(name))``.
         """
-        req = requests.get(self.server + project_uri, auth=self.auth)
+        req = requests.get(self.server + project_uri, auth=self.auth,
+                           cert=self.cert, verify=self.verify)
         if req.ok:
             return req.json()
         else:
@@ -208,7 +214,7 @@ class Client(object):
         filenames = []
         datalist = job["output_data"]
         if include_input_data:
-           datalist.extend(job["input_data"])
+            datalist.extend(job["input_data"])
         for dataitem in datalist:
             url = dataitem["url"]
             (scheme, netloc, path, params, query, fragment) = urlparse(url)
@@ -223,7 +229,6 @@ class Client(object):
         data_item = {"url": url}
         result = self._post(self.resource_map["dataitem"], data_item)
         return result["resource_uri"]
-
 
 
 class HardwareClient(Client):
@@ -250,7 +255,9 @@ class HardwareClient(Client):
         Get the nex job by oldest date in the queue.
         """
         job_nmpi = None
-        req = requests.get(self.server + self.resource_map["queue"] + "/submitted/next/"+self.platform+"/", auth=self.auth)
+        req = requests.get(self.server + self.resource_map["queue"] + "/submitted/next/"+self.platform+"/",
+                           auth=self.auth,
+                           cert=self.cert, verify=self.verify)
         if req.ok:
             job_nmpi = req.json()
         if 'warning' in job_nmpi:

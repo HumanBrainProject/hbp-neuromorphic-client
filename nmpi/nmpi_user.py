@@ -8,11 +8,29 @@ Copyright 2014
 
 import os.path
 import json
+
 from urlparse import urlparse
 from urllib import urlretrieve
+
 import requests
+from requests.auth import AuthBase
+
 import time
 import datetime
+import base64
+
+
+
+class nmpiAuth(AuthBase):
+    """Attaches ApiKey Authentication to the given Request object."""
+    def __init__(self, token):
+        # setup any auth-related data here
+        self.token = token
+
+    def __call__(self, r):
+        # modify and return the request
+        r.headers['Authorization'] = 'ApiKey '+self.token
+        return r
 
 
 class Client(object):
@@ -30,13 +48,23 @@ class Client(object):
 
     """
 
-    def __init__(self, username, password, entrypoint="http://127.0.0.1:8000/api/v1/"):
+    def __init__(self, username, password=None, entrypoint="http://127.0.0.1:8000/api/v1/"):
         self.auth = (username, password)
-        self.cert = ("../../deployment/ssl/nginx.pem", "../../deployment/ssl/nginx.key")
+        basic = base64.b64encode(username+':'+password)
+        self.cert = None #("../../deployment/ssl/nginx.pem", "../../deployment/ssl/nginx.key")
         self.verify = False
+        self.token = None
         (scheme, netloc, path, params, query, fragment) = urlparse(entrypoint)
         self.server = "%s://%s" % (scheme, netloc)
-        req = requests.get(entrypoint, cert=self.cert, verify=self.verify)
+        # get token
+        req = requests.get(entrypoint+'/token/auth?username='+username, headers={'Authorization': 'Basic '+basic}, cert=self.cert, verify=self.verify)
+        if req.ok:
+            items = req.json()
+            self.token = username+':'+items["key"]
+        else:
+            raise Exception("Authentication Error: No token retrieved.")
+        # get schema
+        req = requests.get(entrypoint, cert=self.cert, verify=self.verify, auth=nmpiAuth(self.token))
         if req.ok:
             self.resource_map = {name: entry["list_endpoint"] for name, entry in req.json().items()}
         else:
@@ -56,8 +84,7 @@ class Client(object):
         """
         Retrieve a resource or list of resources.
         """
-        req = requests.get(self.server + resource_uri, auth=self.auth,
-                           cert=self.cert, verify=self.verify)
+        req = requests.get(self.server + resource_uri, auth=nmpiAuth(self.token), cert=self.cert, verify=self.verify)
         if req.ok:
             if "objects" in req.json():
                 objects = req.json()["objects"]
@@ -76,7 +103,7 @@ class Client(object):
         """
         req = requests.post(self.server + resource_uri,
                             data=json.dumps(data),
-                            auth=self.auth,
+                            auth=nmpiAuth(self.token),
                             cert=self.cert, verify=self.verify,
                             headers={"content-type": "application/json"})
         if not req.ok:
@@ -93,7 +120,7 @@ class Client(object):
         data['log'] += "\n\n" + log_description + "\n-----------------\n" + st + "\n-----------------\n" + log_text
         req = requests.put(self.server + resource_uri,
                            data=json.dumps(data),
-                           auth=self.auth,
+                           auth=nmpiAuth(self.token),
                            cert=self.cert, verify=self.verify,
                            headers={"content-type": "application/json"})
         if not req.ok:
@@ -130,8 +157,7 @@ class Client(object):
 
         If you know the project name but not its URI, use ``c.get_project(c.get_project_uri(name))``.
         """
-        req = requests.get(self.server + project_uri, auth=self.auth,
-                           cert=self.cert, verify=self.verify)
+        req = requests.get(self.server + project_uri, auth=nmpiAuth(self.token), cert=self.cert, verify=self.verify)
         if req.ok:
             return req.json()
         else:
@@ -256,7 +282,7 @@ class HardwareClient(Client):
         """
         job_nmpi = None
         req = requests.get(self.server + self.resource_map["queue"] + "/submitted/next/"+self.platform+"/",
-                           auth=self.auth,
+                           auth=nmpiAuth(self.token),
                            cert=self.cert, verify=self.verify)
         if req.ok:
             job_nmpi = req.json()

@@ -57,7 +57,7 @@ class Client(object):
         (scheme, netloc, path, params, query, fragment) = urlparse(entrypoint)
         self.server = "%s://%s" % (scheme, netloc)
         # get token
-        req = requests.get(entrypoint+'/token/auth?username='+username, headers={'Authorization': 'Basic '+basic}, cert=self.cert, verify=self.verify)
+        req = requests.get(entrypoint+'token/auth?username='+username, headers={'Authorization': 'Basic '+basic}, cert=self.cert, verify=self.verify)
         if req.ok:
             items = req.json()
             self.token = username+':'+items["key"]

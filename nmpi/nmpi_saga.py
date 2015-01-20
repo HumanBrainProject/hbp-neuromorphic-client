@@ -169,7 +169,7 @@ def get_next_job(hc):
         raise
 
     # if the request is giving a job
-    if not 'id' in nmpi_job.keys():
+    if (not nmpi_job) or (not 'id' in nmpi_job.keys()):
         print " \nNo new jobs"
         return None
     else:

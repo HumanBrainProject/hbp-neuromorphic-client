@@ -15,10 +15,34 @@ from urllib import urlretrieve
 import requests
 from requests.auth import AuthBase
 
+from requests_oauthlib import OAuth2Session
+
 import time
 import datetime
 import base64
 
+
+class hbpAuth(AuthBase):
+    # http://requests-oauthlib.readthedocs.org/en/latest/oauth2_workflow.html
+    client_id = r'nmpi'
+    client_secret = r'b8IMyR-dd-qR6k3VAbHRYYAngKySClc9olDr084HpDmr1fjtx6TMHUwjpBnKcZc2uQfIU3BAAJplhoH42BsiyQ'
+    redirect_uri = 'https://neuromorphic.humanbrainproject.eu/complete/hbp-oauth2/'
+    scope = ['openid', 'profile'] # empty means default for many providers
+
+    oauth = OAuth2Session(client_id, redirect_uri=redirect_uri, scope=scope)
+
+    authorization_url, state = oauth.authorization_url(
+        'https://neuromorphic.humanbrainproject.eu/login/hbp-oauth2/?next=/',
+        # access_type and approval_prompt are Google specific extra parameters.
+        access_type="offline", 
+        approval_prompt="force"
+    )
+
+    print 'Please go to %s and authorize access.' % authorization_url
+    authorization_response = raw_input('Enter the full callback URL')
+
+    # after, in each call:
+    #r = oauth.get('https://www.googleapis.com/oauth2/v1/userinfo')
 
 
 class nmpiAuth(AuthBase):
@@ -31,6 +55,7 @@ class nmpiAuth(AuthBase):
         # modify and return the request
         r.headers['Authorization'] = 'ApiKey '+self.token
         return r
+
 
 
 class Client(object):

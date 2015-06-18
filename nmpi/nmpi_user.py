@@ -15,34 +15,10 @@ from urllib import urlretrieve
 import requests
 from requests.auth import AuthBase
 
-from requests_oauthlib import OAuth2Session
-
 import time
 import datetime
 import base64
 
-
-class hbpAuth(AuthBase):
-    # http://requests-oauthlib.readthedocs.org/en/latest/oauth2_workflow.html
-    client_id = r'nmpi'
-    client_secret = r'b8IMyR-dd-qR6k3VAbHRYYAngKySClc9olDr084HpDmr1fjtx6TMHUwjpBnKcZc2uQfIU3BAAJplhoH42BsiyQ'
-    redirect_uri = 'https://neuromorphic.humanbrainproject.eu/complete/hbp-oauth2/'
-    scope = ['openid', 'profile'] # empty means default for many providers
-
-    oauth = OAuth2Session(client_id, redirect_uri=redirect_uri, scope=scope)
-
-    authorization_url, state = oauth.authorization_url(
-        'https://neuromorphic.humanbrainproject.eu/login/hbp-oauth2/?next=/',
-        # access_type and approval_prompt are Google specific extra parameters.
-        access_type="offline", 
-        approval_prompt="force"
-    )
-
-    print 'Please go to %s and authorize access.' % authorization_url
-    authorization_response = raw_input('Enter the full callback URL')
-
-    # after, in each call:
-    #r = oauth.get('https://www.googleapis.com/oauth2/v1/userinfo')
 
 
 class nmpiAuth(AuthBase):
@@ -73,27 +49,90 @@ class Client(object):
 
     """
 
-    def __init__(self, username, password=None, entrypoint="http://127.0.0.1:8000/api/v1/"):
+    def __init__(self, username, password=None, entrypoint="http://127.0.0.1:8000/api/v1/", withHBP=True ):
         self.auth = (username, password)
-        basic = base64.b64encode(username+':'+password)
         self.cert = None #("../../deployment/ssl/nginx.pem", "../../deployment/ssl/nginx.key")
         self.verify = False
         self.token = None
         (scheme, netloc, path, params, query, fragment) = urlparse(entrypoint)
         self.server = "%s://%s" % (scheme, netloc)
-        # get token
-        req = requests.get(entrypoint+'token/auth?username='+username, headers={'Authorization': 'Basic '+basic}, cert=self.cert, verify=self.verify)
-        if req.ok:
-            items = req.json()
-            self.token = username+':'+items["key"]
-        else:
-            raise Exception("Authentication Error: No token retrieved.")
+        # HBP auth
+        if withHBP:
+            self._hbp_auth()
         # get schema
         req = requests.get(entrypoint, cert=self.cert, verify=self.verify, auth=nmpiAuth(self.token))
         if req.ok:
             self.resource_map = {name: entry["list_endpoint"] for name, entry in req.json().items()}
         else:
             self._handle_error(req)
+
+
+
+    def _hbp_auth( self ):
+        """
+        """
+        client_id = r'nmpi'
+        client_secret = r'b8IMyR-dd-qR6k3VAbHRYYAngKySClc9olDr084HpDmr1fjtx6TMHUwjpBnKcZc2uQfIU3BAAJplhoH42BsiyQ'
+        redirect_uri = self.server + '/complete/hbp-oauth2/'
+
+        s = requests.Session()
+        # 1. login button on NMPI
+        rNMPI1 = s.get( self.server + "/login/hbp-oauth2/?next=/", allow_redirects=False, verify=False )
+        # 2. receives a redirect
+        if rNMPI1.status_code == 302 :
+            # Get its new destination (location)
+            url = rNMPI1.headers.get('location')
+            # https://services.humanbrainproject.eu/oidc/authorize?
+            #   scope=openid%20profile
+            #   state=jQLERcgK1xTDHcxezNYnbmLlXhHgJmsg
+            #   redirect_uri=https://neuromorphic.humanbrainproject.eu/complete/hbp-oauth2/
+            #   response_type=code
+            #   client_id=nmpi
+            # get the exchange cookie
+            cookie = rNMPI1.headers.get('set-cookie').split(";")[0]
+            s.headers.update({'cookie': cookie})
+            # 3. request to the provided url at HBP 
+            rHBP1 = s.get( url, allow_redirects=False, verify=False )
+            # 4. receives a redirect to HBP login page
+            if rHBP1.status_code == 302 :
+                # Get its new destination (location)
+                url = rHBP1.headers.get('location')
+                cookie = rHBP1.headers.get('set-cookie').split(";")[0]
+                s.headers.update({'cookie': cookie})
+                # 5. request to the provided url at HBP 
+                rHBP2 = s.get( url, allow_redirects=False, verify=False )
+                # 6. HBP responds with the auth form 
+                if rHBP2.text : 
+                    # 7. Request to the auth service url 
+                    formdata = {
+                        'j_username': self.auth[0], 
+                        'j_password': self.auth[1], 
+                        'submit':'Login', 
+                        'redirect_uri': redirect_uri+'&response_type=code&client_id=nmpi'
+                    }
+                    headers = {'accept': 'application/json'}
+                    rNMPI2 = s.post( "https://services.humanbrainproject.eu/oidc/j_spring_security_check", 
+                        data=formdata, 
+                        allow_redirects=True, 
+                        verify=False, 
+                        headers=headers )
+                    # check good communication
+                    if rNMPI2.status_code == requests.codes.ok:
+                        # check success address
+                        if rNMPI2.url == self.server+'/':
+                            # print rNMPI2.text 
+                            res = rNMPI2.json()
+                            self.token = res['access_token']
+                        # unauthorized
+                        else:
+                            if 'error' in rNMPI2.url:
+                                print "Authentication Failure: No token retrieved."
+                            else:
+                                print "Unhandeled error in Authentication"
+                    else:
+                        print "Communication error"
+
+
 
     def _handle_error(self, request):
         """
@@ -104,6 +143,8 @@ class Client(object):
         except ValueError:
             errmsg = request.content
         raise Exception("Error %s: %s" % (request.status_code, errmsg))
+
+
 
     def _query(self, resource_uri, verbose=False):
         """
@@ -122,6 +163,8 @@ class Client(object):
         else:
             self._handle_error(req)
 
+
+
     def _post(self, resource_uri, data):
         """
         Create a new resource.
@@ -134,6 +177,8 @@ class Client(object):
         if not req.ok:
             self._handle_error(req)
         return req.json()
+
+
 
     def _put(self, resource_uri, data, log_description, log_text):
         """
@@ -151,6 +196,22 @@ class Client(object):
         if not req.ok:
             self._handle_error(req)
         return data
+
+
+
+    # def get_token(self):
+    #     """
+    #     Retrieve token once authenticated.
+    #     """
+    #     base64.b64encode(username+':'+password)
+    #     req = requests.get(self.server + '/api/v1/token/auth?username='+self.auth[0], headers={'Authorization': 'Basic '+basic}, cert=self.cert, verify=self.verify)
+    #     if req.ok:
+    #         items = req.json()
+    #         self.token = self.auth[0]+':'+items["key"]
+    #     else:
+    #         self._handle_error(req)
+
+
 
     def create_project(self, short_name, full_name=None, description=None, members=None):
         """
@@ -176,6 +237,8 @@ class Client(object):
         self._post(self.resource_map["project"], project)
         print("Project %s created" % short_name)
 
+
+
     def get_project(self, project_uri):
         """
         Retrieve data about a project, given its URI.
@@ -188,6 +251,8 @@ class Client(object):
         else:
             self._handle_error(req)
 
+
+
     def get_project_uri(self, project_name):
         """
         Obtain the URI of a project given its short name.
@@ -198,11 +263,15 @@ class Client(object):
         print("Project '%s' not found." % project_name)
         return None
 
+
+
     def list_projects(self, verbose=False):
         """
         Retrieve a list of the projects to which you have access.
         """
         return self._query(self.resource_map["project"], verbose=verbose)
+
+
 
     def submit_job(self, source, platform, project, config=None, inputs=None):
         """
@@ -230,11 +299,15 @@ class Client(object):
         print("Job submitted")
         return result["id"]
 
+
+
     def job_status(self, job_id):
         """
 
         """
         return self.get_job(job_id)["status"]
+
+
 
     def get_job(self, job_id):
         """
@@ -246,17 +319,23 @@ class Client(object):
                     return job
         raise Exception("No such job: %s" % job_id)
 
+
+
     def queued_jobs(self, project_name=None, verbose=False):
         """
 
         """
         return self._query(self.resource_map["queue"] + "/submitted/", verbose=verbose)
 
+
+
     def completed_jobs(self, project_name=None, verbose=False):
         """
 
         """
         return self._query(self.resource_map["results"], verbose=verbose)
+
+
 
     def download_data_url(self, job, local_dir=".", include_input_data=False):
         """
@@ -276,10 +355,14 @@ class Client(object):
             filenames.append(local_filename)
         return filenames
 
+
+
     def create_data_item(self, url):
         data_item = {"url": url}
         result = self._post(self.resource_map["dataitem"], data_item)
         return result["resource_uri"]
+
+
 
 
 class HardwareClient(Client):
@@ -300,6 +383,8 @@ class HardwareClient(Client):
     def __init__(self, username, password, entrypoint, platform):
         Client.__init__(self, username, password, entrypoint)
         self.platform = platform
+
+
 
     def get_next_job(self):
         """

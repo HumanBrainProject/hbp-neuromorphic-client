@@ -5,7 +5,7 @@ import getpass
 # to choose and accept the type of access.
 
 # base_url = r"https://accounts.google.com/o/oauth2/"
-base_url = r"https://neuromorphic.humanbrainproject.eu/"
+base_url = r"https://www.hbpneuromorphic.eu/"
 
 
 s = requests.Session()
@@ -50,20 +50,33 @@ if rNMPI1.status_code == 302 :
 				'j_username': user, 
 				'j_password': pssw, 
 				'submit':'Login', 
-				'redirect_uri':'https://neuromorphic.humanbrainproject.eu/complete/hbp-oauth2/&response_type=code&client_id=nmpi'
+				'redirect_uri':'https://www.hbpneuromorphic.eu/complete/hbp-oauth2/&response_type=code&client_id=nmpi'
 			}
-			rNMPI2 = s.post( "https://services.humanbrainproject.eu/oidc/j_spring_security_check", data=formdata, allow_redirects=True, verify=False )
+			headers = {'accept': 'application/json'}
+			rNMPI2 = s.post( "https://services.humanbrainproject.eu/oidc/j_spring_security_check", 
+				data=formdata, 
+				allow_redirects=True, 
+				verify=False, 
+				headers=headers )
 
-			# 8. Redirection to NMPI
-			params = rNMPI2.url.split("?")[1].split("&")
-			code = params[0].split("=")[1]
-			state = params[1].split("=")[1]
-			print "code:",code
-			print "state:",state
-			print rNMPI2.text
-			print rNMPI2.status_code
+			# check good communication
+			if rNMPI2.status_code == requests.codes.ok:
 
+				# check success address
+				if rNMPI2.url == base_url:
+					# print rNMPI2.text 
+					res = rNMPI2.json()
+					print res['username']
+					print res['access_token']
 
+				# unauthorized
+				else:
+					if 'error' in rNMPI2.url:
+						print "Authentication Failure: No token retrieved."
+					else:
+						print "Unhandeled error in Authentication"
+			else:
+				print "Communication error"
 
 
 

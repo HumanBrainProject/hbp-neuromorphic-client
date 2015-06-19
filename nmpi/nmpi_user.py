@@ -261,7 +261,6 @@ class Client(object):
         """
         # for project in requests.get( self.server + self.resource_map["project"], auth=nmpiAuth(self.auth[0],self.token), cert=self.cert, verify=self.verify ):
         for project in self._query( self.resource_map["project"], verbose=True ):
-            print project
             if project_name == project["short_name"]:
                 return project["resource_uri"]
         print("Project '%s' not found." % project_name)

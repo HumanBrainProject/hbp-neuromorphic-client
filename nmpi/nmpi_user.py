@@ -50,7 +50,7 @@ class Client(object):
 
     """
 
-    def __init__(self, username, password=None, entrypoint="http://127.0.0.1:8000/api/v1/", token=None, withHBP=True ):
+    def __init__(self, username, password=None, entrypoint="http://127.0.0.1:8000/api/v1/", token=None ):
         self.auth = (username, password)
         self.cert = None #("../../deployment/ssl/nginx.pem", "../../deployment/ssl/nginx.key")
         self.verify = False

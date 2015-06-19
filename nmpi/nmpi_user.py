@@ -23,13 +23,14 @@ import base64
 
 class nmpiAuth(AuthBase):
     """Attaches ApiKey Authentication to the given Request object."""
-    def __init__(self, token):
+    def __init__(self, username, token):
         # setup any auth-related data here
+        self.username = username
         self.token = token
 
     def __call__(self, r):
         # modify and return the request
-        r.headers['Authorization'] = 'ApiKey '+self.token
+        r.headers['Authorization'] = 'ApiKey '+self.username+":"+self.token
         return r
 
 
@@ -49,18 +50,18 @@ class Client(object):
 
     """
 
-    def __init__(self, username, password=None, entrypoint="http://127.0.0.1:8000/api/v1/", withHBP=True ):
+    def __init__(self, username, password=None, entrypoint="http://127.0.0.1:8000/api/v1/", token=None, withHBP=True ):
         self.auth = (username, password)
         self.cert = None #("../../deployment/ssl/nginx.pem", "../../deployment/ssl/nginx.key")
         self.verify = False
-        self.token = None
+        self.token = token
         (scheme, netloc, path, params, query, fragment) = urlparse(entrypoint)
         self.server = "%s://%s" % (scheme, netloc)
-        # HBP auth
-        if withHBP:
+        # if a token has been given, no need to auth
+        if not self.token:
             self._hbp_auth()
         # get schema
-        req = requests.get(entrypoint, cert=self.cert, verify=self.verify, auth=nmpiAuth(self.token))
+        req = requests.get(entrypoint, cert=self.cert, verify=self.verify, auth=nmpiAuth(self.auth[0],self.token))
         if req.ok:
             self.resource_map = {name: entry["list_endpoint"] for name, entry in req.json().items()}
         else:
@@ -75,9 +76,9 @@ class Client(object):
         client_secret = r'b8IMyR-dd-qR6k3VAbHRYYAngKySClc9olDr084HpDmr1fjtx6TMHUwjpBnKcZc2uQfIU3BAAJplhoH42BsiyQ'
         redirect_uri = self.server + '/complete/hbp-oauth2/'
 
-        s = requests.Session()
+        self.session = requests.Session()
         # 1. login button on NMPI
-        rNMPI1 = s.get( self.server + "/login/hbp-oauth2/?next=/", allow_redirects=False, verify=False )
+        rNMPI1 = self.session.get( self.server + "/login/hbp-oauth2/?next=/", allow_redirects=False, verify=False )
         # 2. receives a redirect
         if rNMPI1.status_code == 302 :
             # Get its new destination (location)
@@ -90,17 +91,17 @@ class Client(object):
             #   client_id=nmpi
             # get the exchange cookie
             cookie = rNMPI1.headers.get('set-cookie').split(";")[0]
-            s.headers.update({'cookie': cookie})
+            self.session.headers.update({'cookie': cookie})
             # 3. request to the provided url at HBP 
-            rHBP1 = s.get( url, allow_redirects=False, verify=False )
+            rHBP1 = self.session.get( url, allow_redirects=False, verify=False )
             # 4. receives a redirect to HBP login page
             if rHBP1.status_code == 302 :
                 # Get its new destination (location)
                 url = rHBP1.headers.get('location')
                 cookie = rHBP1.headers.get('set-cookie').split(";")[0]
-                s.headers.update({'cookie': cookie})
+                self.session.headers.update({'cookie': cookie})
                 # 5. request to the provided url at HBP 
-                rHBP2 = s.get( url, allow_redirects=False, verify=False )
+                rHBP2 = self.session.get( url, allow_redirects=False, verify=False )
                 # 6. HBP responds with the auth form 
                 if rHBP2.text : 
                     # 7. Request to the auth service url 
@@ -111,7 +112,7 @@ class Client(object):
                         'redirect_uri': redirect_uri+'&response_type=code&client_id=nmpi'
                     }
                     headers = {'accept': 'application/json'}
-                    rNMPI2 = s.post( "https://services.humanbrainproject.eu/oidc/j_spring_security_check", 
+                    rNMPI2 = self.session.post( "https://services.humanbrainproject.eu/oidc/j_spring_security_check", 
                         data=formdata, 
                         allow_redirects=True, 
                         verify=False, 
@@ -150,7 +151,7 @@ class Client(object):
         """
         Retrieve a resource or list of resources.
         """
-        req = requests.get(self.server + resource_uri, auth=nmpiAuth(self.token), cert=self.cert, verify=self.verify)
+        req = requests.get(self.server + resource_uri, auth=nmpiAuth(self.auth[0],self.token), cert=self.cert, verify=self.verify)
         if req.ok:
             if "objects" in req.json():
                 objects = req.json()["objects"]
@@ -171,7 +172,7 @@ class Client(object):
         """
         req = requests.post(self.server + resource_uri,
                             data=json.dumps(data),
-                            auth=nmpiAuth(self.token),
+                            auth=nmpiAuth(self.auth[0],self.token),
                             cert=self.cert, verify=self.verify,
                             headers={"content-type": "application/json"})
         if not req.ok:
@@ -190,7 +191,7 @@ class Client(object):
         data['log'] += "\n\n" + log_description + "\n-----------------\n" + st + "\n-----------------\n" + log_text
         req = requests.put(self.server + resource_uri,
                            data=json.dumps(data),
-                           auth=nmpiAuth(self.token),
+                           auth=nmpiAuth(self.auth[0],self.token),
                            cert=self.cert, verify=self.verify,
                            headers={"content-type": "application/json"})
         if not req.ok:
@@ -234,9 +235,10 @@ class Client(object):
             "members": [{"resource_uri": self.resource_map["user"] + "/" + member, "username": member}
                         for member in members]
         }
-        self._post(self.resource_map["project"], project)
-        print("Project %s created" % short_name)
-
+        res = self._post( self.resource_map["project"], project )
+        if isinstance(res, dict):
+            print("Project %s created" % short_name)
+        return res
 
 
     def get_project(self, project_uri):
@@ -245,7 +247,7 @@ class Client(object):
 
         If you know the project name but not its URI, use ``c.get_project(c.get_project_uri(name))``.
         """
-        req = requests.get(self.server + project_uri, auth=nmpiAuth(self.token), cert=self.cert, verify=self.verify)
+        req = requests.get(self.server + project_uri, auth=nmpiAuth(self.auth[0],self.token), cert=self.cert, verify=self.verify)
         if req.ok:
             return req.json()
         else:
@@ -257,7 +259,9 @@ class Client(object):
         """
         Obtain the URI of a project given its short name.
         """
-        for project in self._query(self.resource_map["project"], verbose=True):
+        # for project in requests.get( self.server + self.resource_map["project"], auth=nmpiAuth(self.auth[0],self.token), cert=self.cert, verify=self.verify ):
+        for project in self._query( self.resource_map["project"], verbose=True ):
+            print project
             if project_name == project["short_name"]:
                 return project["resource_uri"]
         print("Project '%s' not found." % project_name)
@@ -269,7 +273,7 @@ class Client(object):
         """
         Retrieve a list of the projects to which you have access.
         """
-        return self._query(self.resource_map["project"], verbose=verbose)
+        return self._query( self.resource_map["project"], verbose=verbose)
 
 
 
@@ -295,7 +299,7 @@ class Client(object):
             job['input_data'] = [self.create_data_item(input) for input in inputs]
         if config is not None:
             job['hardware_config'] = config
-        result = self._post(self.resource_map["queue"], job)
+        result = self._post( self.resource_map["queue"], job)
         print("Job submitted")
         return result["id"]
 
@@ -314,7 +318,7 @@ class Client(object):
 
         """
         for resource_type in ("queue", "results"):
-            for job in self._query(self.resource_map[resource_type], verbose=True):
+            for job in self._query( self.resource_map[resource_type], verbose=True):
                 if job["id"] == job_id:
                     return job
         raise Exception("No such job: %s" % job_id)
@@ -325,7 +329,7 @@ class Client(object):
         """
 
         """
-        return self._query(self.resource_map["queue"] + "/submitted/", verbose=verbose)
+        return self._query( self.resource_map["queue"] + "/submitted/next/nosetest/", verbose=verbose )
 
 
 
@@ -333,7 +337,7 @@ class Client(object):
         """
 
         """
-        return self._query(self.resource_map["results"], verbose=verbose)
+        return self._query( self.resource_map["results"], verbose=verbose )
 
 
 
@@ -359,7 +363,7 @@ class Client(object):
 
     def create_data_item(self, url):
         data_item = {"url": url}
-        result = self._post(self.resource_map["dataitem"], data_item)
+        result = self._post( self.resource_map["dataitem"], data_item )
         return result["resource_uri"]
 
 
@@ -392,7 +396,7 @@ class HardwareClient(Client):
         """
         job_nmpi = None
         req = requests.get(self.server + self.resource_map["queue"] + "/submitted/next/"+self.platform+"/",
-                           auth=nmpiAuth(self.token),
+                           auth=nmpiAuth(self.auth[0],self.token),
                            cert=self.cert, verify=self.verify)
         if req.ok:
             job_nmpi = req.json()

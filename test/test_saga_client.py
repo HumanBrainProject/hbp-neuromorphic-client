@@ -14,11 +14,11 @@ import saga
 from nmpi import nmpi_saga, nmpi_user
 
 
-ENTRYPOINT = "https://157.136.240.232/api/v1/"
-#ENTRYPOINT = "https://nmpi-queue-server-apdavison.delta.tutum.io:49202/api/v1/"
-#ENTRYPOINT = "http://192.168.59.103:49153/api/v1/"
-#ENTRYPOINT = "http://127.0.0.1:8000/api/v1/"
-#ENTRYPOINT = "https://172.17.0.81/api/v1/"
+ENTRYPOINT = "https://www.hbpneuromorphic.eu/api/v1/"
+#ENTRYPOINT = "http://127.0.0.1:8999/api/v1/"
+
+TEST_TOKEN = "boIeArQtaH1Vwibq4AnaZE91diEQASN9ZV1BO-f2tFi7dJkwowIJP6Vhcf4b6uj0HtiyshEheugRek2EDFHiNZHlZtDAVNUTypnN0CnA5yPIPqv6CaMsjuByumMdIenw"
+HARDWARE_TOKEN = "D7oyE7C8-TlwT88Xt9TyiCWwivUkes7lukaomwrfTq01RravZXeDHQhRSwSIvHACHZoJhbrxTqFr5ADe853SDvlVK9JGz8oQMqAaNUE7WH39J16sD5hFs91a0s2SGzuO"
 
 simple_test_script = r"""
 from datetime import datetime
@@ -51,7 +51,10 @@ sim.end()
 class SlurmTest(unittest.TestCase):
 
     def setUp(self):
-        self.service = saga.job.Service("slurm://localhost")
+        try:
+            self.service = saga.job.Service("slurm://localhost")
+        except saga.NoSuccess:
+            raise unittest.SkipTest("SLURM not available")
 
     def tearDown(self):
         self.service.close()
@@ -113,14 +116,14 @@ class QueueServerInteractionTest(unittest.TestCase):
     maxDiff = None
 
     def setUp(self):
-        self.user_client = nmpi_user.Client("testuser", "abc123",
+        self.user_client = nmpi_user.Client("testuser", token=TEST_TOKEN,
                                             entrypoint=ENTRYPOINT)
         self.project_name = datetime.now().strftime("test_%Y%m%d_%H%M%S")
         self.user_client.create_project(self.project_name, members=['testuser', 'nmpi'])
         self.hardware_client = nmpi_user.HardwareClient(username="nmpi",
-                                                        password="Poh3Eip'",
                                                         entrypoint=ENTRYPOINT,
-                                                        platform="nosetest")
+                                                        platform="nosetest",
+                                                        token=HARDWARE_TOKEN)
 
     def _submit_test_job(self):
         self.user_client.submit_job(
@@ -153,15 +156,18 @@ class QueueServerInteractionTest(unittest.TestCase):
 class FullStackTest(unittest.TestCase):
 
     def setUp(self):
-        self.service = saga.job.Service("slurm://localhost")
-        self.user_client = nmpi_user.Client("testuser", "abc123",
+        try:
+            self.service = saga.job.Service("slurm://localhost")
+        except saga.NoSuccess:
+            raise unittest.SkipTest("SLURM not available")
+        self.user_client = nmpi_user.Client("testuser", token=TEST_TOKEN,
                                             entrypoint=ENTRYPOINT)
         self.project_name = datetime.now().strftime("test_%Y%m%d_%H%M%S")
         self.user_client.create_project(self.project_name, members=['testuser', 'nmpi'])
         self.hardware_client = nmpi_user.HardwareClient(username="nmpi",
-                                                        password="Poh3Eip'",
                                                         entrypoint=ENTRYPOINT,
-                                                        platform="nosetest")
+                                                        platform="nosetest",
+                                                        token=HARDWARE_TOKEN)
 
     def tearDown(self):
         self.service.close()

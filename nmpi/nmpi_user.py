@@ -8,7 +8,7 @@ Copyright 2014
 
 import os.path
 import json
-
+import getpass
 from urlparse import urlparse
 from urllib import urlretrieve
 
@@ -50,10 +50,13 @@ class Client(object):
 
     """
 
-    def __init__(self, username, password=None, entrypoint="http://127.0.0.1:8000/api/v1/", token=None ):
+    def __init__(self, username, password=None, entrypoint="https://www.hbpneuromorphic.eu/api/v1/", token=None):
+        if password is None and token is None:
+            # prompt for password
+            password = getpass.getpass()
         self.auth = (username, password)
         self.cert = None #("../../deployment/ssl/nginx.pem", "../../deployment/ssl/nginx.key")
-        self.verify = False
+        self.verify = True
         self.token = token
         (scheme, netloc, path, params, query, fragment) = urlparse(entrypoint)
         self.server = "%s://%s" % (scheme, netloc)
@@ -78,7 +81,7 @@ class Client(object):
 
         self.session = requests.Session()
         # 1. login button on NMPI
-        rNMPI1 = self.session.get( self.server + "/login/hbp-oauth2/?next=/", allow_redirects=False, verify=False )
+        rNMPI1 = self.session.get( self.server + "/login/hbp-oauth2/?next=/", allow_redirects=False, verify=True )
         # 2. receives a redirect
         if rNMPI1.status_code == 302 :
             # Get its new destination (location)
@@ -93,7 +96,7 @@ class Client(object):
             cookie = rNMPI1.headers.get('set-cookie').split(";")[0]
             self.session.headers.update({'cookie': cookie})
             # 3. request to the provided url at HBP 
-            rHBP1 = self.session.get( url, allow_redirects=False, verify=False )
+            rHBP1 = self.session.get( url, allow_redirects=False, verify=True )
             # 4. receives a redirect to HBP login page
             if rHBP1.status_code == 302 :
                 # Get its new destination (location)
@@ -101,7 +104,7 @@ class Client(object):
                 cookie = rHBP1.headers.get('set-cookie').split(";")[0]
                 self.session.headers.update({'cookie': cookie})
                 # 5. request to the provided url at HBP 
-                rHBP2 = self.session.get( url, allow_redirects=False, verify=False )
+                rHBP2 = self.session.get( url, allow_redirects=False, verify=True )
                 # 6. HBP responds with the auth form 
                 if rHBP2.text : 
                     # 7. Request to the auth service url 
@@ -115,7 +118,7 @@ class Client(object):
                     rNMPI2 = self.session.post( "https://services.humanbrainproject.eu/oidc/j_spring_security_check", 
                         data=formdata, 
                         allow_redirects=True, 
-                        verify=False, 
+                        verify=True,
                         headers=headers )
                     # check good communication
                     if rNMPI2.status_code == requests.codes.ok:
@@ -127,12 +130,17 @@ class Client(object):
                         # unauthorized
                         else:
                             if 'error' in rNMPI2.url:
-                                print "Authentication Failure: No token retrieved."
+                                raise Exception("Authentication Failure: No token retrieved.")
                             else:
-                                print "Unhandeled error in Authentication"
+                                raise Exception("Unhandled error in Authentication.")
                     else:
-                        print "Communication error"
-
+                        raise Exception("Communication error")
+                else:
+                    raise Exception("Something went wrong. No text.")
+            else:
+                raise Exception("Something went wrong. Status code {} from HBP, expected 302".format(rHBP1.status_code))
+        else:
+            raise Exception("Something went wrong. Status code {} from NMPI, expected 302".format(rNMPI1.status_code))
 
 
     def _handle_error(self, request):
@@ -141,6 +149,8 @@ class Client(object):
         """
         try:
             errmsg = request.json()["error_message"]
+        except KeyError:
+            errmsg = request.json()["error"]
         except ValueError:
             errmsg = request.content
         raise Exception("Error %s: %s" % (request.status_code, errmsg))
@@ -198,22 +208,6 @@ class Client(object):
             self._handle_error(req)
         return data
 
-
-
-    # def get_token(self):
-    #     """
-    #     Retrieve token once authenticated.
-    #     """
-    #     base64.b64encode(username+':'+password)
-    #     req = requests.get(self.server + '/api/v1/token/auth?username='+self.auth[0], headers={'Authorization': 'Basic '+basic}, cert=self.cert, verify=self.verify)
-    #     if req.ok:
-    #         items = req.json()
-    #         self.token = self.auth[0]+':'+items["key"]
-    #     else:
-    #         self._handle_error(req)
-
-
-
     def create_project(self, short_name, full_name=None, description=None, members=None):
         """
         Create a new project.
@@ -232,7 +226,7 @@ class Client(object):
             "short_name": short_name,
             "full_name": full_name,
             "description": description,
-            "members": [{"resource_uri": self.resource_map["user"] + "/" + member, "username": member}
+            "members": [self.resource_map["user"] + "/" + member
                         for member in members]
         }
         res = self._post( self.resource_map["project"], project )
@@ -267,6 +261,16 @@ class Client(object):
         return None
 
 
+    def edit_project(self, project_uri, full_name=None, description=None):
+        raise NotImplementedError
+
+
+    def add_project_member(self, project_uri, member):
+        raise NotImplementedError
+
+    def delete_project_member(self, project_uri, member):
+        raise NotImplementedError
+
 
     def list_projects(self, verbose=False):
         """
@@ -292,8 +296,10 @@ class Client(object):
             'experiment_description': source_code,
             'hardware_platform': platform,
             'project': project_uri,
-            'user': '/api/v1/user/' + self.auth[0]
+            'user': self.resource_map["user"] + "/" + self.auth[0]
         }
+
+
         if inputs is not None:
             job['input_data'] = [self.create_data_item(input) for input in inputs]
         if config is not None:
@@ -328,7 +334,7 @@ class Client(object):
         """
 
         """
-        return self._query( self.resource_map["queue"] + "/submitted/next/nosetest/", verbose=verbose )
+        return self._query( self.resource_map["queue"] + "/submitted/", verbose=verbose )
 
 
 
@@ -383,15 +389,13 @@ class HardwareClient(Client):
 
     """
 
-    def __init__(self, username, password, entrypoint, platform):
-        Client.__init__(self, username, password, entrypoint)
+    def __init__(self, username, platform, token, entrypoint="https://www.hbpneuromorphic.eu/api/v1/"):
+        Client.__init__(self, username, password=None, entrypoint=entrypoint, token=token)
         self.platform = platform
-
-
 
     def get_next_job(self):
         """
-        Get the nex job by oldest date in the queue.
+        Get the next job by oldest date in the queue.
         """
         job_nmpi = None
         req = requests.get(self.server + self.resource_map["queue"] + "/submitted/next/"+self.platform+"/",

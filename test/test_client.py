@@ -13,11 +13,10 @@ from nmpi import nmpi_user
 
 
 ENTRYPOINT = "https://www.hbpneuromorphic.eu/api/v1/"
-#ENTRYPOINT = "https://157.136.240.232/api/v1/"
-#ENTRYPOINT = "https://nmpi-queue-server-apdavison.delta.tutum.io:49202/api/v1/"
-#ENTRYPOINT = "http://192.168.59.103:49153/api/v1/"
-#ENTRYPOINT = "http://127.0.0.1:8000/api/v1/"
-#ENTRYPOINT = "https://172.17.0.81/api/v1/"
+#ENTRYPOINT = "http://127.0.0.1:8999/api/v1/"
+
+TEST_TOKEN = "boIeArQtaH1Vwibq4AnaZE91diEQASN9ZV1BO-f2tFi7dJkwowIJP6Vhcf4b6uj0HtiyshEheugRek2EDFHiNZHlZtDAVNUTypnN0CnA5yPIPqv6CaMsjuByumMdIenw"
+
 
 simple_test_script = r"""
 from datetime import datetime
@@ -47,17 +46,16 @@ sim.end()
 """
 
 
-
 class QueueInteractionTest(unittest.TestCase):
 
     def setUp(self):
-        self.user_client = nmpi_user.Client("guarino", "P4r1g1B0rd3ll!", entrypoint=ENTRYPOINT )
+        self.user_client = nmpi_user.Client("testuser", entrypoint=ENTRYPOINT, token=TEST_TOKEN)
         self.project_name = "nosetest"
         self.job_id = None
         # print self.user_client.resource_map
 
     def test__1_create_project(self):
-        self.user_client.create_project( short_name=self.project_name, full_name=self.project_name, description="test",members=['guarino', 'admin'] )
+        self.user_client.create_project( short_name=self.project_name, full_name=self.project_name, description="test", members=['testuser', 'admin'] )
 
 
     def test__2_get_project(self):
@@ -69,7 +67,7 @@ class QueueInteractionTest(unittest.TestCase):
 
 
     def test__4_submit_job(self):
-        self.job_id = self.user_client.submit_job( source=simple_test_script, platform="nosetest", project=self.project_name)
+        self.job_id = self.user_client.submit_job( source=simple_test_script, platform="nosetest_platform", project=self.project_name)
         print "job_id: ", self.job_id
         print self.user_client.job_status(self.job_id)
         print self.user_client.get_job(self.job_id)
@@ -81,7 +79,6 @@ class QueueInteractionTest(unittest.TestCase):
 
 
 
-# if __name__ == '__main__':
-#     unittest.main()
-suite = unittest.TestLoader().loadTestsFromTestCase( QueueInteractionTest )
-unittest.TextTestRunner(verbosity=2).run(suite)
+if __name__ == '__main__':
+    suite = unittest.TestLoader().loadTestsFromTestCase( QueueInteractionTest )
+    unittest.TextTestRunner(verbosity=2).run(suite)

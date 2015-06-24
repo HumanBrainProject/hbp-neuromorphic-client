@@ -72,10 +72,10 @@ def job_failed(job):
 
 # states switch
 job_states = {
-    saga.job.PENDING : job_pending,
-    saga.job.RUNNING : job_running,
-    saga.job.DONE : job_done,
-    saga.job.FAILED : job_failed,
+    saga.job.PENDING: job_pending,
+    saga.job.RUNNING: job_running,
+    saga.job.DONE: job_done,
+    saga.job.FAILED: job_failed,
 }
 
 #-----------------------------------
@@ -85,10 +85,10 @@ def zipdir(basedir, archivename):
     assert os.path.isdir(basedir)
     with closing(ZipFile(archivename, "w", ZIP_DEFLATED)) as z:
         for root, dirs, files in os.walk(basedir):
-            #NOTE: ignore empty directories
+            # NOTE: ignore empty directories
             for fn in files:
                 absfn = os.path.join(root, fn)
-                zfn = absfn[len(basedir)+len(os.sep):]  # XXX: relative path
+                zfn = absfn[len(basedir) + len(os.sep):]  # XXX: relative path
                 z.write(absfn, zfn)
 
 
@@ -102,7 +102,7 @@ def load_config(fullpath):
     with open(fullpath) as f:
         for line in f:
             # leave out comment as python/bash
-            if not line.startswith('#') and len(line)>=5:
+            if not line.startswith('#') and len(line) >= 5:
                 (key, val) = line.split('=')
                 conf[key] = val.strip()
     logger.info("Loaded configuration file with contents: %s" % conf)
@@ -226,7 +226,7 @@ def update_status(hc, saga_job, nmpi_job):
     print "Job ID    : %s" % (saga_job.id)
     # Status
     if saga_job.get_state() == saga.job.PENDING:
-        desc = "NMPI: job " + str(saga_job.id)+" pending"
+        desc = "NMPI: job " + str(saga_job.id) + " pending"
     elif saga_job.get_state() == saga.job.RUNNING:
         desc = "NMPI: job " + str(saga_job.id) + " running"
     else:
@@ -259,11 +259,11 @@ def handle_output_data(hc, config, job_desc, nmpi_job):
 
 def update_final_service(hc, job, nmpi_job, job_desc):
     if job.get_state() == saga.job.DONE:
-        desc = "NMPI: job "+str(job.id)+" finished"
+        desc = "NMPI: job " + str(job.id) + " finished"
         with open(os.path.join(job_desc.working_directory, job_desc.output), "r") as outfile:
             outtext = outfile.read()
     elif job.get_state() == saga.job.FAILED:
-        desc = "NMPI: job "+str(job.id)+" error"
+        desc = "NMPI: job " + str(job.id) + " error"
         with open(os.path.join(job_desc.working_directory, job_desc.error), "r") as outfile:
             outtext = outfile.read()
     else:
@@ -276,7 +276,7 @@ def update_final_service(hc, job, nmpi_job, job_desc):
 
 def main():
     # set parameters
-    config = load_config( "./saga.cfg" )
+    config = load_config("./saga.cfg")
 
     hc = get_client(config)
 

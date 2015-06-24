@@ -59,12 +59,10 @@ class QueueInteractionTest(unittest.TestCase):
 
 
     def test__2_get_project(self):
-        self.user_client.get_project( self.user_client.get_project_uri(self.project_name) )
-
+        self.user_client.get_project(self.user_client.get_project_uri(self.project_name))
 
     def test__3_list_projects(self):
         self.user_client.list_projects(verbose=True)
-
 
     def test__4_submit_job(self):
         self.job_id = self.user_client.submit_job( source=simple_test_script, platform="nosetest_platform", project=self.project_name)
@@ -72,13 +70,11 @@ class QueueInteractionTest(unittest.TestCase):
         print self.user_client.job_status(self.job_id)
         print self.user_client.get_job(self.job_id)
 
-
     def test__5_queued_jobs(self):
         # per platform
         self.user_client.queued_jobs(project_name=self.project_name, verbose=True)
 
 
-
 if __name__ == '__main__':
-    suite = unittest.TestLoader().loadTestsFromTestCase( QueueInteractionTest )
+    suite = unittest.TestLoader().loadTestsFromTestCase(QueueInteractionTest)
     unittest.TextTestRunner(verbosity=2).run(suite)

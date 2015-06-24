@@ -60,7 +60,8 @@ class SlurmTest(unittest.TestCase):
         self.service.close()
 
     def test__run_job(self):
-        # in creating the temporary directory, we assume that /home is shared across cluster nodes, but /tmp probably isn't
+        # in creating the temporary directory, we assume that /home is shared
+        # across cluster nodes, but /tmp probably isn't
         tmpdir = tempfile.mkdtemp(dir=os.path.join(os.path.expanduser("~/"), "tmp"))
         with open(os.path.join(tmpdir, "run.py"), "w") as fp:
             fp.write(simple_test_script)
@@ -81,7 +82,8 @@ class SlurmTest(unittest.TestCase):
         shutil.rmtree(tmpdir)
 
     def test__run_PyNN_job(self):
-        # in creating the temporary directory, we assume that /home is shared across cluster nodes, but /tmp probably isn't
+        # in creating the temporary directory, we assume that /home is shared
+        # across cluster nodes, but /tmp probably isn't
         tmpdir = tempfile.mkdtemp(dir=os.path.join(os.path.expanduser("~/"), "tmp"))
         with open(os.path.join(tmpdir, "run.py"), "w") as fp:
             fp.write(simulation_test_script)

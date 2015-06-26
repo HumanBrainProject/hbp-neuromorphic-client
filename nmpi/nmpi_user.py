@@ -49,13 +49,13 @@ class Client(object):
 
     """
 
-    def __init__(self, username, password=None, entrypoint="https://www.hbpneuromorphic.eu/api/v1/", token=None):
+    def __init__(self, username, password=None, entrypoint="https://www.hbpneuromorphic.eu/api/v1/", token=None, verify=True):
         if password is None and token is None:
             # prompt for password
             password = getpass.getpass()
         self.auth = (username, password)
         self.cert = None #("../../deployment/ssl/nginx.pem", "../../deployment/ssl/nginx.key")
-        self.verify = True
+        self.verify = verify
         self.token = token
         (scheme, netloc, path, params, query, fragment) = urlparse(entrypoint)
         self.server = "%s://%s" % (scheme, netloc)
@@ -358,20 +358,15 @@ class HardwareClient(Client):
 
     """
 
-    def __init__(self, username, platform, token, entrypoint="https://www.hbpneuromorphic.eu/api/v1/"):
-        Client.__init__(self, username, password=None, entrypoint=entrypoint, token=token)
+    def __init__(self, username, platform, token, entrypoint="https://www.hbpneuromorphic.eu/api/v1/", verify=True):
+        Client.__init__(self, username, password=None, entrypoint=entrypoint, token=token, verify=verify)
         self.platform = platform
 
     def get_next_job(self):
         """
         Get the next job by oldest date in the queue.
         """
-        job_nmpi = None
-        req = requests.get(self.server + self.resource_map["queue"] + "/submitted/next/" + self.platform + "/",
-                           auth=nmpiAuth(self.auth[0], self.token),
-                           cert=self.cert, verify=self.verify)
-        if req.ok:
-            job_nmpi = req.json()
+        job_nmpi = self._query(self.resource_map["queue"] + "/submitted/next/" + self.platform + "/")
         if 'warning' in job_nmpi:
             job_nmpi = None
         return job_nmpi

@@ -105,6 +105,9 @@ def load_config(fullpath):
             if not line.startswith('#') and len(line) >= 5:
                 (key, val) = line.split('=')
                 conf[key] = val.strip()
+    for key, val in conf.items():
+        if val in ("True", "False", "None"):
+            conf[key] = eval(val)
     logger.info("Loaded configuration file with contents: %s" % conf)
     return conf
 
@@ -124,8 +127,15 @@ def build_job_description(nmpi_job, config):
     job_id = nmpi_job['id']
     job_desc.working_directory = os.path.join(config['WORKING_DIRECTORY'], 'job_%s' % job_id)
     # job_desc.spmd_variation    = "MPI" # to be commented out if not using MPI
-    job_desc.executable = config['JOB_EXECUTABLE']
-    job_desc.queue = config['JOB_QUEUE']  # aka SLURM "partition"
+    pyNN_version = nmpi_job['hardware_config'].get("pyNN_version", "0.7")
+    if pyNN_version == "0.7":
+        job_desc.executable = config['JOB_EXECUTABLE_PYNN_7']
+    elif pyNN_version == "0.8":
+        job_desc.executable = config['JOB_EXECUTABLE_PYNN_8']
+    else:
+        raise ValueError("Supported PyNN versions: 0.7, 0.8. {} not supported".format(pyNN_version))
+    if config['JOB_QUEUE'] is not None:
+        job_desc.queue = config['JOB_QUEUE']  # aka SLURM "partition"
     job_desc.arguments = [os.path.join(job_desc.working_directory, DEFAULT_SCRIPT_NAME),
                           config['DEFAULT_PYNN_BACKEND']]  # TODO: allow choosing backend in "hardware_config
     job_desc.output = "saga_" + str(job_id) + '.out'
@@ -150,9 +160,10 @@ def run_job(job_desc, service):
 
 def get_client(config):
     hc = nmpi.HardwareClient(username=config['AUTH_USER'],
-                             password=config['AUTH_PASS'],
+                             token=config['AUTH_TOKEN'],
                              entrypoint=config['NMPI_HOST'] + config['NMPI_API'],
-                             platform=config['PLATFORM_NAME'])
+                             platform=config['PLATFORM_NAME'],
+                             verify=config['VERIFY_SSL'])
     return hc
 
 
@@ -243,6 +254,8 @@ def handle_output_data(hc, config, job_desc, nmpi_job):
     zips the whole nmpi_job folder (for the moment) and adds it to the list of nmpi_job output data
     """
     # can we perhaps add the zipname to the job_desc earlier in the process, to avoid passing config here
+    if not os.path.exists(config['DATA_DIRECTORY']):
+        os.makedirs(config['DATA_DIRECTORY'])
     zipname = os.path.join(config['DATA_DIRECTORY'],  os.path.basename(job_desc.working_directory) + '.zip')
     zipdir(job_desc.working_directory, zipname)
     # append the new output to the list of item data and retrieve it
@@ -276,7 +289,7 @@ def update_final_service(hc, job, nmpi_job, job_desc):
 
 def main():
     # set parameters
-    config = load_config("./saga.cfg")
+    config = load_config(os.environ.get("NMPI_CONFIG", "./nmpi.cfg"))
 
     hc = get_client(config)
 
@@ -285,11 +298,11 @@ def main():
 
     #-----------------------------------------------------------------------------
     # 1. it uses the nmpi api to retrieve the next nmpi_job (FIFO of nmpi_job with status='submitted')
-    try:
-        nmpi_job = get_next_job(hc)
-    except Exception as err:
-        print(err)
-        return -1
+    #try:
+    nmpi_job = get_next_job(hc)
+    #except Exception as err:
+    #    print(err)
+    #    return -1
     if nmpi_job is None:
         return 0
 

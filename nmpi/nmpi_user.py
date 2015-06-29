@@ -222,10 +222,8 @@ class Client(object):
         full_name : (optional) a longer name for the project, may contain spaces.
         description : (optional) a detailed description of the project.
         members : (optional) a list of usernames allowed to access the project
-                  (by default the current user is in the list).
+                  (by default the current user has access).
         """
-        if members is None:
-            members = [self.username]
         project = {
             "short_name": short_name,
             "full_name": full_name,

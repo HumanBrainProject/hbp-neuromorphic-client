@@ -193,14 +193,15 @@ class Client(object):
             self._handle_error(req)
         return req.json()
 
-    def _put(self, resource_uri, data, log_description, log_text):
+    def _put(self, resource_uri, data, log_description=None, log_text=None):
         """
         Updates a resource (with desc).
         """
-        ts = time.time()
-        st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%dT%H:%M:%S')
-        data['timestamp_completion'] = unicode(st)   # not sure this should go here, could be other updates possible
-        data['log'] += "\n\n" + log_description + "\n-----------------\n" + st + "\n-----------------\n" + log_text
+        if "results" in resource_uri:
+            ts = time.time()
+            st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%dT%H:%M:%S')
+            data['timestamp_completion'] = unicode(st)   # not sure this should go here, could be other updates possible
+            data['log'] += "\n\n" + log_description + "\n-----------------\n" + st + "\n-----------------\n" + log_text
         req = requests.put(self.server + resource_uri,
                            data=json.dumps(data),
                            auth=self.auth,
@@ -259,8 +260,13 @@ class Client(object):
         print("Project '%s' not found." % project_name)
         return None
 
-    def edit_project(self, project_uri, full_name=None, description=None):
-        raise NotImplementedError
+    def update_project(self, project_uri, full_name=None, description=None):
+        project = self.get_project(project_uri)
+        if full_name is not None:
+            project["full_name"] = full_name
+        if description is not None:
+            project["description"] = description
+        res = self._put(project_uri, project)
 
     def add_project_member(self, project_uri, member):
         raise NotImplementedError

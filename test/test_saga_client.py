@@ -122,7 +122,7 @@ class QueueServerInteractionTest(unittest.TestCase):
                                             entrypoint=ENTRYPOINT)
         self.project_name = datetime.now().strftime("test_%Y%m%d_%H%M%S")
         self.user_client.create_project(self.project_name, members=['testuser', 'nmpi'])
-        self.hardware_client = nmpi_user.HardwareClient(username="nmpi",
+        self.hardware_client = nmpi_saga.HardwareClient(username="nmpi",
                                                         entrypoint=ENTRYPOINT,
                                                         platform="nosetest",
                                                         token=HARDWARE_TOKEN)
@@ -166,7 +166,7 @@ class FullStackTest(unittest.TestCase):
                                             entrypoint=ENTRYPOINT)
         self.project_name = datetime.now().strftime("test_%Y%m%d_%H%M%S")
         self.user_client.create_project(self.project_name, members=['testuser', 'nmpi'])
-        self.hardware_client = nmpi_user.HardwareClient(username="nmpi",
+        self.hardware_client = nmpi_saga.HardwareClient(username="nmpi",
                                                         entrypoint=ENTRYPOINT,
                                                         platform="nosetest",
                                                         token=HARDWARE_TOKEN)

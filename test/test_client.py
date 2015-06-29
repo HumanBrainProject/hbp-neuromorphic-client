@@ -14,6 +14,8 @@ from nmpi import nmpi_user
 
 ENTRYPOINT = "https://www.hbpneuromorphic.eu/api/v1/"
 #ENTRYPOINT = "http://127.0.0.1:8999/api/v1/"
+#ENTRYPOINT = "https://192.168.59.103:32768/api/v1/"
+#ENTRYPOINT = "https://nmpi-tmp-1.apdavison.cont.tutum.io:49157/api/v1/"
 
 TEST_TOKEN = "boIeArQtaH1Vwibq4AnaZE91diEQASN9ZV1BO-f2tFi7dJkwowIJP6Vhcf4b6uj0HtiyshEheugRek2EDFHiNZHlZtDAVNUTypnN0CnA5yPIPqv6CaMsjuByumMdIenw"
 
@@ -72,7 +74,7 @@ class QueueInteractionTest(unittest.TestCase):
 
     def test__5_queued_jobs(self):
         # per platform
-        self.user_client.queued_jobs(project_name=self.project_name, verbose=True)
+        self.user_client.queued_jobs(verbose=True)
 
 
 if __name__ == '__main__':

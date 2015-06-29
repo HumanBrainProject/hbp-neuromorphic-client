@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from setuptools import setup
-import os
+from distutils.core import setup
 
 long_description = open("README.txt").read()
 

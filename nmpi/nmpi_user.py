@@ -17,10 +17,9 @@ from requests.auth import AuthBase
 
 import time
 import datetime
-import base64
 
 
-class nmpiAuth(AuthBase):
+class NMPAuth(AuthBase):
     """Attaches ApiKey Authentication to the given Request object."""
 
     def __init__(self, username, token):
@@ -45,32 +44,41 @@ class Client(object):
     ---------
 
     username, password : credentials for accessing the platform
-    entrypoint : the base URL of the platform. Generally the default value should be used.
-
+    entrypoint : the base URL of the platform. Generally the default value
+                 should be used.
+    token : when you authenticate with username and password, you will receive
+            a token which can be used in place of the password until it expires.
+    verify : in case of problems with SSL certificate verification, you can
+             set this to False, but this is not recommended.
     """
 
-    def __init__(self, username, password=None, entrypoint="https://www.hbpneuromorphic.eu/api/v1/", token=None, verify=True):
+    def __init__(self, username,
+                 password=None,
+                 entrypoint="https://www.hbpneuromorphic.eu/api/v1/",
+                 token=None,
+                 verify=True):
         if password is None and token is None:
             # prompt for password
             password = getpass.getpass()
-        self.auth = (username, password)
-        self.cert = None #("../../deployment/ssl/nginx.pem", "../../deployment/ssl/nginx.key")
+        self.username = username
+        self.cert = None
         self.verify = verify
         self.token = token
         (scheme, netloc, path, params, query, fragment) = urlparse(entrypoint)
         self.server = "%s://%s" % (scheme, netloc)
-        # if a token has been given, no need to auth
+        # if a token has been given, no need to authenticate
         if not self.token:
-            self._hbp_auth()
+            self._hbp_auth(username, password)
+        self.auth = NMPAuth(username, self.token)
         # get schema
-        req = requests.get(entrypoint, cert=self.cert, verify=self.verify, auth=nmpiAuth(self.auth[0],self.token))
+        req = requests.get(entrypoint, cert=self.cert, verify=self.verify, auth=self.auth)
         if req.ok:
             self.resource_map = {name: entry["list_endpoint"]
                                  for name, entry in req.json().items()}
         else:
             self._handle_error(req)
 
-    def _hbp_auth(self):
+    def _hbp_auth(self, username, password):
         """
         """
         client_id = r'nmpi'
@@ -79,7 +87,8 @@ class Client(object):
 
         self.session = requests.Session()
         # 1. login button on NMPI
-        rNMPI1 = self.session.get( self.server + "/login/hbp-oauth2/?next=/", allow_redirects=False, verify=True )
+        rNMPI1 = self.session.get(self.server + "/login/hbp-oauth2/?next=/",
+                                  allow_redirects=False, verify=True)
         # 2. receives a redirect
         if rNMPI1.status_code == 302:
             # Get its new destination (location)
@@ -107,8 +116,8 @@ class Client(object):
                 if rHBP2.text:
                     # 7. Request to the auth service url
                     formdata = {
-                        'j_username': self.auth[0],
-                        'j_password': self.auth[1],
+                        'j_username': username,
+                        'j_password': password,
                         'submit': 'Login',
                         'redirect_uri': redirect_uri + '&response_type=code&client_id=nmpi'
                     }
@@ -157,7 +166,8 @@ class Client(object):
         """
         Retrieve a resource or list of resources.
         """
-        req = requests.get(self.server + resource_uri, auth=nmpiAuth(self.auth[0],self.token), cert=self.cert, verify=self.verify)
+        req = requests.get(self.server + resource_uri, auth=self.auth,
+                           cert=self.cert, verify=self.verify)
         if req.ok:
             if "objects" in req.json():
                 objects = req.json()["objects"]
@@ -176,7 +186,7 @@ class Client(object):
         """
         req = requests.post(self.server + resource_uri,
                             data=json.dumps(data),
-                            auth=nmpiAuth(self.auth[0], self.token),
+                            auth=self.auth,
                             cert=self.cert, verify=self.verify,
                             headers={"content-type": "application/json"})
         if not req.ok:
@@ -193,7 +203,7 @@ class Client(object):
         data['log'] += "\n\n" + log_description + "\n-----------------\n" + st + "\n-----------------\n" + log_text
         req = requests.put(self.server + resource_uri,
                            data=json.dumps(data),
-                           auth=nmpiAuth(self.auth[0], self.token),
+                           auth=self.auth,
                            cert=self.cert, verify=self.verify,
                            headers={"content-type": "application/json"})
         if not req.ok:
@@ -207,13 +217,15 @@ class Client(object):
         Arguments
         ---------
 
-        short_name : a unique identifier for the project, consisting of only letters, numbers and underscores.
+        short_name : a unique identifier for the project, consisting of only
+                     letters, numbers and underscores.
         full_name : (optional) a longer name for the project, may contain spaces.
         description : (optional) a detailed description of the project.
-        members : (optional) a list of usernames allowed to access the project (by default the current user is in the list).
+        members : (optional) a list of usernames allowed to access the project
+                  (by default the current user is in the list).
         """
         if members is None:
-            members = [self.auth[0]]
+            members = [self.username]
         project = {
             "short_name": short_name,
             "full_name": full_name,
@@ -230,9 +242,10 @@ class Client(object):
         """
         Retrieve data about a project, given its URI.
 
-        If you know the project name but not its URI, use ``c.get_project(c.get_project_uri(name))``.
+        If you know the project name but not its URI,
+        use ``c.get_project(c.get_project_uri(name))``.
         """
-        req = requests.get(self.server + project_uri, auth=nmpiAuth(self.auth[0],self.token), cert=self.cert, verify=self.verify)
+        req = requests.get(self.server + project_uri, auth=self.auth, cert=self.cert, verify=self.verify)
         if req.ok:
             return req.json()
         else:
@@ -242,7 +255,6 @@ class Client(object):
         """
         Obtain the URI of a project given its short name.
         """
-        # for project in requests.get( self.server + self.resource_map["project"], auth=nmpiAuth(self.auth[0],self.token), cert=self.cert, verify=self.verify ):
         for project in self._query( self.resource_map["project"], verbose=True ):
             if project_name == project["short_name"]:
                 return project["resource_uri"]
@@ -266,7 +278,22 @@ class Client(object):
 
     def submit_job(self, source, platform, project, config=None, inputs=None):
         """
+        Submit a job to the platform.
 
+        Arguments:
+
+        source : the Python script to be run, the URL of a public version
+                 control repository containing a file "run.py" at the top
+                 level, or a zip file containing a file "run.py" at the top
+                 level.
+        platform : the neuromorphic hardware system to be used.
+                   Either "hbp-pm-1" or "hbp-mc-1"
+        project : the name of the project to which the job belongs
+        config : (optional) a dictionary containing configuration information
+                 for the hardware platform. See the Platform Guidebook for
+                 more details.
+        inputs : a list of URLs for datafiles needed as inputs to the
+                 simulation.
         """
         project_uri = self.get_project_uri(project)
         if project_uri is None:
@@ -280,7 +307,7 @@ class Client(object):
             'experiment_description': source_code,
             'hardware_platform': platform,
             'project': project_uri,
-            'user': self.resource_map["user"] + "/" + self.auth[0]
+            'user': self.resource_map["user"] + "/" + self.username
         }
 
         if inputs is not None:
@@ -293,13 +320,13 @@ class Client(object):
 
     def job_status(self, job_id):
         """
-
+        Return the current status of the job with ID `job_id` (integer).
         """
         return self.get_job(job_id)["status"]
 
     def get_job(self, job_id):
         """
-
+        Return full details of the job with ID `job_id` (integer).
         """
         for resource_type in ("queue", "results"):
             for job in self._query(self.resource_map[resource_type], verbose=True):
@@ -307,21 +334,41 @@ class Client(object):
                     return job
         raise Exception("No such job: %s" % job_id)
 
-    def queued_jobs(self, project_name=None, verbose=False):
+    def queued_jobs(self, verbose=False):
         """
+        Return the list of jobs belonging to the current user in the queue.
 
+        Arguments
+        ---------
+
+        verbose : if False, return just the job URIs,
+                  if True, return full details.
         """
         return self._query(self.resource_map["queue"] + "/submitted/", verbose=verbose)
 
-    def completed_jobs(self, project_name=None, verbose=False):
+    def completed_jobs(self, verbose=False):
         """
+        Return the list of completed jobs belonging to the current user.
 
+        Arguments
+        ---------
+
+        verbose : if False, return just the job URIs,
+                  if True, return full details.
         """
+        # todo: add kwargs `project_name` to allow filtering of the jobs
         return self._query(self.resource_map["results"], verbose=verbose)
 
     def download_data_url(self, job, local_dir=".", include_input_data=False):
         """
+        Download output data files produced by a given job to a local directory.
 
+        Arguments
+        ---------
+
+        job : a full job description (dict), as returned by `get_job()`.
+        local_dir : path to a directory into which files shall be saved.
+        include_input_data : also download input data files.
         """
         filenames = []
         datalist = job["output_data"]
@@ -338,35 +385,9 @@ class Client(object):
         return filenames
 
     def create_data_item(self, url):
+        """
+        Register a data item with the platform.
+        """
         data_item = {"url": url}
         result = self._post(self.resource_map["dataitem"], data_item)
         return result["resource_uri"]
-
-
-class HardwareClient(Client):
-    """
-    Client for interacting from a specific hardware, with the Neuromorphic Computing Platform of the Human Brain Project.
-
-    This includes submitting jobs, tracking job status, retrieving the results of completed jobs,
-    and creating and administering projects.
-
-    Arguments
-    ---------
-
-    username, password : credentials for accessing the platform
-    entrypoint : the base URL of the platform. Generally the default value should be used.
-
-    """
-
-    def __init__(self, username, platform, token, entrypoint="https://www.hbpneuromorphic.eu/api/v1/", verify=True):
-        Client.__init__(self, username, password=None, entrypoint=entrypoint, token=token, verify=verify)
-        self.platform = platform
-
-    def get_next_job(self):
-        """
-        Get the next job by oldest date in the queue.
-        """
-        job_nmpi = self._query(self.resource_map["queue"] + "/submitted/next/" + self.platform + "/")
-        if 'warning' in job_nmpi:
-            job_nmpi = None
-        return job_nmpi

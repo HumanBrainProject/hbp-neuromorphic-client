@@ -1,2 +1,5 @@
 from nmpi_user import Client
-from nmpi_user import HardwareClient
+try:
+    from nmpi_saga import HardwareClient
+except ImportError:
+    pass

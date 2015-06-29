@@ -116,6 +116,40 @@ def load_config(fullpath):
 #-----------------------------------------------------------------------------
 
 
+
+class HardwareClient(nmpi.Client):
+    """
+    Client for interacting from a specific hardware, with the Neuromorphic Computing Platform of the Human Brain Project.
+
+    This includes submitting jobs, tracking job status, retrieving the results of completed jobs,
+    and creating and administering projects.
+
+    Arguments
+    ---------
+
+    username, password : credentials for accessing the platform
+    entrypoint : the base URL of the platform. Generally the default value should be used.
+
+    """
+
+    def __init__(self, username, platform, token, entrypoint="https://www.hbpneuromorphic.eu/api/v1/", verify=True):
+        nmpi.Client.__init__(self, username, password=None, entrypoint=entrypoint, token=token, verify=verify)
+        self.platform = platform
+
+    def get_next_job(self):
+        """
+        Get the next job by oldest date in the queue.
+        """
+        job_nmpi = self._query(self.resource_map["queue"] + "/submitted/next/" + self.platform + "/")
+        if 'warning' in job_nmpi:
+            job_nmpi = None
+        return job_nmpi
+
+
+#-----------------------------------------------------------------------------
+#-----------------------------------------------------------------------------
+
+
 def build_job_description(nmpi_job, config):
     """
     Construct a Saga job description based on an NMPI job description and the local configuration.
@@ -159,11 +193,11 @@ def run_job(job_desc, service):
 
 
 def get_client(config):
-    hc = nmpi.HardwareClient(username=config['AUTH_USER'],
-                             token=config['AUTH_TOKEN'],
-                             entrypoint=config['NMPI_HOST'] + config['NMPI_API'],
-                             platform=config['PLATFORM_NAME'],
-                             verify=config['VERIFY_SSL'])
+    hc = HardwareClient(username=config['AUTH_USER'],
+                        token=config['AUTH_TOKEN'],
+                        entrypoint=config['NMPI_HOST'] + config['NMPI_API'],
+                        platform=config['PLATFORM_NAME'],
+                        verify=config['VERIFY_SSL'])
     return hc
 
 

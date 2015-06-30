@@ -98,13 +98,14 @@ def process_error(line, stdin, process):
 
 
 def load_config(fullpath):
+    print("Loading configuration file from {}".format(fullpath))
     conf = {}
     with open(fullpath) as f:
         for line in f:
             # leave out comment as python/bash
             if not line.startswith('#') and len(line) >= 5:
                 (key, val) = line.split('=')
-                conf[key] = val.strip()
+                conf[key.strip()] = val.strip()
     for key, val in conf.items():
         if val in ("True", "False", "None"):
             conf[key] = eval(val)
@@ -161,13 +162,19 @@ def build_job_description(nmpi_job, config):
     job_id = nmpi_job['id']
     job_desc.working_directory = os.path.join(config['WORKING_DIRECTORY'], 'job_%s' % job_id)
     # job_desc.spmd_variation    = "MPI" # to be commented out if not using MPI
-    pyNN_version = nmpi_job['hardware_config'].get("pyNN_version", "0.7")
+
+    if nmpi_job['hardware_config'] is None:
+        pyNN_version = "0.7"
+    else:
+        pyNN_version = nmpi_job['hardware_config'].get("pyNN_version", "0.7")
+
     if pyNN_version == "0.7":
         job_desc.executable = config['JOB_EXECUTABLE_PYNN_7']
     elif pyNN_version == "0.8":
         job_desc.executable = config['JOB_EXECUTABLE_PYNN_8']
     else:
         raise ValueError("Supported PyNN versions: 0.7, 0.8. {} not supported".format(pyNN_version))
+
     if config['JOB_QUEUE'] is not None:
         job_desc.queue = config['JOB_QUEUE']  # aka SLURM "partition"
     job_desc.arguments = [os.path.join(job_desc.working_directory, DEFAULT_SCRIPT_NAME),

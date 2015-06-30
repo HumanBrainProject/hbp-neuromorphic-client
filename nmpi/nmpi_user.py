@@ -9,8 +9,12 @@ Copyright 2014
 import os.path
 import json
 import getpass
-from urlparse import urlparse
-from urllib import urlretrieve
+try:
+    from urlparse import urlparse
+    from urllib import urlretrieve
+except ImportError:  # Py3
+    from urllib.parse import urlparse
+    from urllib.request import urlretrieve
 
 import requests
 from requests.auth import AuthBase
@@ -225,6 +229,8 @@ class Client(object):
         members : (optional) a list of usernames allowed to access the project
                   (by default the current user has access).
         """
+        if members is None:
+            members = []
         project = {
             "short_name": short_name,
             "full_name": full_name,
@@ -303,7 +309,7 @@ class Client(object):
         if project_uri is None:
             raise Exception("Project '%s' does not exist. You must first create it." % project)
         if os.path.exists(source):
-            with open(source, "rb") as fp:
+            with open(source, "r") as fp:
                 source_code = fp.read()
         else:
             source_code = source

@@ -235,7 +235,7 @@ class Client(object):
             "short_name": short_name,
             "full_name": full_name,
             "description": description,
-            "members": [self.resource_map["user"] + "/" + member
+            "members": [{"username": member, "resource_uri": self.resource_map["user"] + "/" + member}
                         for member in members]
         }
         res = self._post(self.resource_map["project"], project)

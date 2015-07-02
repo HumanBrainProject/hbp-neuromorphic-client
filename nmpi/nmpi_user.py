@@ -197,15 +197,10 @@ class Client(object):
             self._handle_error(req)
         return req.json()
 
-    def _put(self, resource_uri, data, log_description=None, log_text=None):
+    def _put(self, resource_uri, data):
         """
-        Updates a resource (with desc).
+        Updates a resource.
         """
-        if "results" in resource_uri:
-            ts = time.time()
-            st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%dT%H:%M:%S')
-            data['timestamp_completion'] = unicode(st)   # not sure this should go here, could be other updates possible
-            data['log'] += "\n\n" + log_description + "\n-----------------\n" + st + "\n-----------------\n" + log_text
         req = requests.put(self.server + resource_uri,
                            data=json.dumps(data),
                            auth=self.auth,

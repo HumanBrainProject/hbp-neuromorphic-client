@@ -129,6 +129,15 @@ class HardwareClient(nmpi.Client):
     def update_job(self, job):
         return self._put(job["resource_uri"], job)
 
+    def reset_job(self, job):
+        """
+        If a job is stuck in the "running" state due to a problem on the backend,
+        reset its status to "submitted".
+        """
+        job["status"] = "submitted"
+        job["log"] += "reset status to 'submitted'\n"
+        return self._put(job["resource_uri"], job)
+
 
 # adapted from Sumatra
 def _find_new_data_files(root, timestamp,

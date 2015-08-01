@@ -210,6 +210,16 @@ class Client(object):
             self._handle_error(req)
         return data
 
+    def _delete(self, resource_uri):
+        """
+        Deletes a resource
+        """
+        req = requests.delete(self.server + resource_uri,
+                              auth=self.auth,
+                              cert=self.cert, verify=self.verify)
+        if not req.ok:
+            self._handle_error(req)
+
     def create_project(self, short_name, full_name=None, description=None, members=None):
         """
         Create a new project.
@@ -338,6 +348,22 @@ class Client(object):
                 if job["id"] == job_id:
                     return job
         raise Exception("No such job: %s" % job_id)
+
+    def remove_completed_job(self, job_id):
+        """
+        Remove a job from the interface.
+
+        The job is hidden rather than being permanently deleted.
+        """
+        self._delete("{}/{}".format(self.resource_map["results"], job_id))
+
+    def remove_queued_job(self, job_id):
+        """
+        Remove a job from the interface.
+
+        The job is hidden rather than being permanently deleted.
+        """
+        self._delete("{}/{}".format(self.resource_map["queue"], job_id))
 
     def queued_jobs(self, verbose=False):
         """

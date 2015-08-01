@@ -145,24 +145,49 @@ class QueueServerInteractionTest(unittest.TestCase):
         ))
 
     def _submit_test_job(self):
-        self.user_client.submit_job(
+        self.last_job = self.user_client.submit_job(
             source=simple_test_script,
             platform="nosetest",
             project=self.project_name)
 
     def test__get_next_job(self):
         self._submit_test_job()
-        nmpi_job = self.job_runner.client.get_next_job()
+        nmpi_job = self.job_runner.client.get_job(self.last_job)
         self.assertEqual(nmpi_job["status"], "submitted")
         self.assertEqual(nmpi_job["user"], "/api/v1/user/testuser")
         self.assertEqual(nmpi_job["hardware_platform"], "nosetest")
 
     def test__update_status(self):
         self._submit_test_job()
-        nmpi_job = self.job_runner.client.get_next_job()
+        nmpi_job = self.job_runner.client.get_job(self.last_job)
         nmpi_job = self.job_runner._update_status(nmpi_job, MockSagaJob(saga.job.RUNNING))
         self.assertEqual(nmpi_job["status"], "running")
         self.assertEqual(self.user_client.get_job(nmpi_job['id']), nmpi_job)
+
+    def test__remove_queued_job(self):
+        # create a job
+        self._submit_test_job()
+        test_job = self.user_client.get_job(self.last_job)
+        # check the job is on the queue
+        jobs = self.user_client.queued_jobs()
+        self.assertIn(test_job['resource_uri'], jobs)
+        # remove the job
+        self.user_client.remove_queued_job(self.last_job)
+        # check the job is no longer on the queue
+        jobs = self.user_client.queued_jobs()
+        self.assertNotIn(test_job['resource_uri'], jobs)
+
+    def test__remove_completed_job(self):
+        self._submit_test_job()
+        test_job = self.user_client.get_job(self.last_job)
+        test_job['status'] = 'finished'
+        self.job_runner.client.update_job(test_job)
+        test_job['resource_uri'] = test_job['resource_uri'].replace('queue', 'results')
+        jobs = self.user_client.completed_jobs()
+        self.assertIn(test_job['resource_uri'], jobs)
+        self.user_client.remove_completed_job(self.last_job)
+        jobs = self.user_client.completed_jobs()
+        self.assertNotIn(test_job['resource_uri'], jobs)
 
 
 class FullStackTest(unittest.TestCase):

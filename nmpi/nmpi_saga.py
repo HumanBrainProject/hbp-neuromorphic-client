@@ -22,12 +22,14 @@ All the personalization should happen in the config file.
 import os
 from os import path
 import logging
+from urlparse import urlparse
+from urllib import urlretrieve
 import shutil
 from datetime import datetime
 import time
 import saga
 import sh
-from sh import git
+from sh import git, unzip, tar
 import nmpi
 
 
@@ -282,19 +284,32 @@ class JobRunner(object):
         Obtain the code and place it in the working directory.
 
         If the experiment description is the URL of a Git repository, try to clone it.
+        If it is the URL of a zip or .tar.gz archive, download and unpack it.
         Otherwise, the experiment_description is the code: write it to a file.
         """
-        try:
-            # Check the experiment_description for a git url (clone it into the workdir) or a script (create a file into the workdir)
-            # URL: use git clone
-            git.clone(nmpi_job['experiment_description'], job_desc.working_directory)
-            logger.info("Cloned resository {}".format(nmpi_job['experiment_description']))
-        except (sh.ErrorReturnCode_128, sh.ErrorReturnCode):
-            # SCRIPT: create file (in the current directory)
-            logger.info("The experiment_description appears to be a script.")
+        url_candidate = urlparse(nmpi_job['experiment_description'])
+        logger.debug("Get code: %s %s", url_candidate.netloc, url_candidate.path)
+        if url_candidate.scheme and url_candidate.path.endswith((".tar.gz", ".zip", ".tgz")):
             self._create_working_directory(job_desc.working_directory)
-            with open(job_desc.arguments[0], 'w') as job_main_script:
-                job_main_script.write(nmpi_job['experiment_description'])
+            target = os.path.join(job_desc.working_directory, os.path.basename(url_candidate.path))
+            urlretrieve(nmpi_job['experiment_description'], target)
+            logger.debug("Retrieved file from {} to local target {}".format(nmpi_job['experiment_description'], target))
+            if url_candidate.path.endswith((".tar.gz", ".tgz")):
+                tar("xzf", target, directory=job_desc.working_directory)
+            elif url_candidate.path.endswith(".zip"):
+                unzip(target, d=job_desc.working_directory)
+        else:
+            try:
+                # Check the experiment_description for a git url (clone it into the workdir) or a script (create a file into the workdir)
+                # URL: use git clone
+                git.clone(nmpi_job['experiment_description'], job_desc.working_directory)
+                logger.info("Cloned resository {}".format(nmpi_job['experiment_description']))
+            except (sh.ErrorReturnCode_128, sh.ErrorReturnCode):
+                # SCRIPT: create file (in the current directory)
+                logger.info("The experiment_description appears to be a script.")
+                self._create_working_directory(job_desc.working_directory)
+                with open(job_desc.arguments[0], 'w') as job_main_script:
+                    job_main_script.write(nmpi_job['experiment_description'])
 
     def _get_input_data(self, nmpi_job, job_desc):
         """

@@ -19,6 +19,7 @@ ENTRYPOINT = "https://www.hbpneuromorphic.eu/api/v1/"
 
 TEST_TOKEN = "boIeArQtaH1Vwibq4AnaZE91diEQASN9ZV1BO-f2tFi7dJkwowIJP6Vhcf4b6uj0HtiyshEheugRek2EDFHiNZHlZtDAVNUTypnN0CnA5yPIPqv6CaMsjuByumMdIenw"
 
+VERIFY = False
 
 simple_test_script = r"""
 from datetime import datetime

@@ -345,9 +345,11 @@ class Client(object):
         Return full details of the job with ID `job_id` (integer).
         """
         for resource_type in ("queue", "results"):
-            for job in self._query(self.resource_map[resource_type], verbose=True):
-                if job["id"] == job_id:
-                    return job
+            job_uri = self._query(self.resource_map[resource_type] + "?id={}".format(job_id))
+            if job_uri:
+                job = self._query(job_uri[0])
+                assert job["id"] == job_id
+                return job
         raise Exception("No such job: %s" % job_id)
 
     def remove_completed_job(self, job_id):

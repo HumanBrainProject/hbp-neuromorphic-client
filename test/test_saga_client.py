@@ -19,6 +19,7 @@ from nmpi import nmpi_saga, nmpi_user
 NMPI_HOST = "https://www.hbpneuromorphic.eu"
 NMPI_API = "/api/v1"
 ENTRYPOINT = NMPI_HOST + NMPI_API
+VERIFY = False
 
 TEST_TOKEN = "boIeArQtaH1Vwibq4AnaZE91diEQASN9ZV1BO-f2tFi7dJkwowIJP6Vhcf4b6uj0HtiyshEheugRek2EDFHiNZHlZtDAVNUTypnN0CnA5yPIPqv6CaMsjuByumMdIenw"
 HARDWARE_TOKEN = "D7oyE7C8-TlwT88Xt9TyiCWwivUkes7lukaomwrfTq01RravZXeDHQhRSwSIvHACHZoJhbrxTqFr5ADe853SDvlVK9JGz8oQMqAaNUE7WH39J16sD5hFs91a0s2SGzuO"
@@ -62,7 +63,7 @@ class SlurmTest(unittest.TestCase):
                 NMPI_HOST=NMPI_HOST,
                 NMPI_API=NMPI_API,
                 PLATFORM_NAME="nosetest",
-                VERIFY_SSL=True
+                VERIFY_SSL=VERIFY
             ))
         except saga.NoSuccess:
             raise unittest.SkipTest("SLURM not available")
@@ -135,7 +136,8 @@ class QueueServerInteractionTest(unittest.TestCase):
 
     def setUp(self):
         self.user_client = nmpi_user.Client("testuser", token=TEST_TOKEN,
-                                            entrypoint=ENTRYPOINT)
+                                            entrypoint=ENTRYPOINT,
+                                            verify=VERIFY)
         self.project_name = datetime.now().strftime("test_%Y%m%d_%H%M%S")
         self.user_client.create_project(self.project_name, members=['testuser', 'nmpi'])
         self.job_runner = nmpi_saga.JobRunner(dict(
@@ -145,7 +147,7 @@ class QueueServerInteractionTest(unittest.TestCase):
             NMPI_HOST=NMPI_HOST,
             NMPI_API=NMPI_API,
             PLATFORM_NAME="nosetest",
-            VERIFY_SSL=True
+            VERIFY_SSL=VERIFY
         ))
 
     def _submit_test_job(self):
@@ -205,7 +207,7 @@ class FullStackTest(unittest.TestCase):
                 NMPI_HOST=NMPI_HOST,
                 NMPI_API=NMPI_API,
                 PLATFORM_NAME="nosetest",
-                VERIFY_SSL=True
+                VERIFY_SSL=VERIFY
             ))
         except saga.NoSuccess:
             raise unittest.SkipTest("SLURM not available")
@@ -235,7 +237,7 @@ class FullStackTest(unittest.TestCase):
                 NMPI_HOST=NMPI_HOST,
                 NMPI_API=NMPI_API,
                 PLATFORM_NAME="nosetest",
-                VERIFY_SSL=True,
+                VERIFY_SSL=VERIFY,
                 WORKING_DIRECTORY=tmpdir,
                 JOB_EXECUTABLE='/usr/bin/python',
                 JOB_QUEUE='intel',
@@ -273,7 +275,7 @@ class CodeRetrievalTest(unittest.TestCase):
             NMPI_HOST=NMPI_HOST,
             NMPI_API=NMPI_API,
             PLATFORM_NAME="nosetest",
-            VERIFY_SSL=True
+            VERIFY_SSL=VERIFY
         ))
         job = MockSagaJob("submitted", working_directory=self.tmp_run_dir)
         mock_nmpi_job = {
@@ -299,7 +301,7 @@ class CodeRetrievalTest(unittest.TestCase):
             NMPI_HOST=NMPI_HOST,
             NMPI_API=NMPI_API,
             PLATFORM_NAME="nosetest",
-            VERIFY_SSL=True
+            VERIFY_SSL=VERIFY
         ))
         job = MockSagaJob("submitted", working_directory=self.tmp_run_dir)
         mock_nmpi_job = {

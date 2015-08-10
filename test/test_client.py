@@ -51,7 +51,7 @@ sim.end()
 class QueueInteractionTest(unittest.TestCase):
 
     def setUp(self):
-        self.user_client = nmpi_user.Client("testuser", entrypoint=ENTRYPOINT, token=TEST_TOKEN)
+        self.user_client = nmpi_user.Client("testuser", entrypoint=ENTRYPOINT, token=TEST_TOKEN, verify=VERIFY)
         self.project_name = "nosetest"
         self.job_id = None
         # print self.user_client.resource_map

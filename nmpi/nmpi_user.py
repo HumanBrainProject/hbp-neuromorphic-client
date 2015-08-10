@@ -265,11 +265,12 @@ class Client(object):
         """
         Obtain the URI of a project given its short name.
         """
-        for project in self._query( self.resource_map["project"], verbose=True ):
-            if project_name == project["short_name"]:
-                return project["resource_uri"]
-        print("Project '%s' not found." % project_name)
-        return None
+        uris = self._query(self.resource_map["project"] + "?short_name={}".format(project_name))
+        if uris:
+            return uris[0]
+        else:
+            print("Project '%s' not found." % project_name)
+            return None
 
     def update_project(self, project_uri, full_name=None, description=None):
         project = self.get_project(project_uri)

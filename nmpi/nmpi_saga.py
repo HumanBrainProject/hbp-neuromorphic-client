@@ -343,8 +343,11 @@ class JobRunner(object):
             if not path.exists(self.config['DATA_DIRECTORY']):
                 os.makedirs(self.config['DATA_DIRECTORY'])
             for new_file in new_files:
+                new_file_path = path.join(output_dir, new_file)
+                if not os.path.exists(os.path.dirname(new_file_path)):
+                    os.makedirs(os.path.dirname(new_file_path))
                 shutil.copyfile(path.join(job_desc.working_directory, new_file),
-                                path.join(output_dir, new_file))
+                                new_file_path)
         # append the new output to the list of item data and retrieve it
         # by POSTing to the DataItem list resource
         for new_file in new_files:

@@ -314,7 +314,8 @@ class Client(object):
         project_uri = self.get_project_uri(project)
         if project_uri is None:
             raise Exception("Project '%s' does not exist. You must first create it." % project)
-        if os.path.exists(source):
+        source = os.path.expanduser(source)
+        if os.path.exists(source) and os.path.splitext(source)[1] == ".py":
             with open(source, "r") as fp:
                 source_code = fp.read()
         else:

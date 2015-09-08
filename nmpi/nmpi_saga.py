@@ -34,6 +34,7 @@ import nmpi
 
 
 DEFAULT_SCRIPT_NAME = "run.py"
+DEFAULT_PYNN_VERSION = "0.7"
 
 logger = logging.getLogger("NMPI")
 
@@ -76,7 +77,7 @@ def job_failed(nmpi_job, saga_job):
 
 
 # states switch
-job_states = {
+default_job_states = {
     saga.job.PENDING: job_pending,
     saga.job.RUNNING: job_running,
     saga.job.DONE: job_done,
@@ -85,7 +86,6 @@ job_states = {
 
 
 def load_config(fullpath):
-    logger.info("Loading configuration file from {}".format(fullpath))
     conf = {}
     with open(fullpath) as f:
         for line in f:
@@ -96,7 +96,7 @@ def load_config(fullpath):
     for key, val in conf.items():
         if val in ("True", "False", "None"):
             conf[key] = eval(val)
-    logger.info("Loaded configuration file with contents: %s" % conf)
+    logger.debug("Loaded configuration file '{}' with contents: {}".format(fullpath, conf))
     return conf
 
 
@@ -201,15 +201,15 @@ class JobRunner(object):
             logger.info("No new jobs")
             return None
         saga_job = self.run(nmpi_job)
-        self._update_status(nmpi_job, saga_job)
+        self._update_status(nmpi_job, saga_job, default_job_states)
         saga_job.wait()
-        logger.info("Job completed")
+        logger.info("Job {} completed".format(saga_job.id))
         # TODO: the script should not wait for the job to finish.
         #       Rather it should submit the job, and then check
         #       whether any previously submitted jobs have completed,
         #       and update those.
         self._handle_output_data(nmpi_job, saga_job)
-        self._update_status(nmpi_job, saga_job)
+        self._update_status(nmpi_job, saga_job, default_job_states)
         return nmpi_job
 
     def run(self, nmpi_job):
@@ -224,7 +224,7 @@ class JobRunner(object):
         # Run the job
         self.start_time = datetime.now()
         time.sleep(1)  # ensure output file timestamps are different from start_time
-        logger.info("Running job {}".format(saga_job.id))
+        logger.debug("Running job {}".format(saga_job.id))
         saga_job.run()
         return saga_job
 
@@ -245,9 +245,9 @@ class JobRunner(object):
         # job_desc.spmd_variation    = "MPI" # to be commented out if not using MPI
 
         if nmpi_job['hardware_config'] is None:
-            pyNN_version = "0.7"
+            pyNN_version = DEFAULT_PYNN_VERSION
         else:
-            pyNN_version = nmpi_job['hardware_config'].get("pyNN_version", "0.7")
+            pyNN_version = nmpi_job['hardware_config'].get("pyNN_version", DEFAULT_PYNN_VERSION)
 
         if pyNN_version == "0.7":
             job_desc.executable = self.config['JOB_EXECUTABLE_PYNN_7']
@@ -303,10 +303,10 @@ class JobRunner(object):
                 # Check the experiment_description for a git url (clone it into the workdir) or a script (create a file into the workdir)
                 # URL: use git clone
                 git.clone(nmpi_job['experiment_description'], job_desc.working_directory)
-                logger.info("Cloned resository {}".format(nmpi_job['experiment_description']))
+                logger.debug("Cloned repository {}".format(nmpi_job['experiment_description']))
             except (sh.ErrorReturnCode_128, sh.ErrorReturnCode):
                 # SCRIPT: create file (in the current directory)
-                logger.info("The experiment_description appears to be a script.")
+                logger.debug("The experiment_description appears to be a script.")
                 self._create_working_directory(job_desc.working_directory)
                 with open(job_desc.arguments[0], 'w') as job_main_script:
                     job_main_script.write(nmpi_job['experiment_description'])
@@ -320,10 +320,10 @@ class JobRunner(object):
         if 'input_data' in nmpi_job and len(nmpi_job['input_data']):
             filelist = self.client.download_data_url(nmpi_job, job_desc.working_directory, True)
 
-    def _update_status(self, nmpi_job, saga_job):
+    def _update_status(self, nmpi_job, saga_job, job_states):
         """Update the status of the nmpi job."""
         saga_state = saga_job.get_state()
-        logger.info("SAGA state: {}".format(saga_state))
+        logger.debug("SAGA state: {}".format(saga_state))
         set_status = job_states[saga_state]
         nmpi_job = set_status(nmpi_job, saga_job)
         self.client.update_job(nmpi_job)
@@ -337,7 +337,7 @@ class JobRunner(object):
         job_desc = saga_job.get_description()
         new_files = _find_new_data_files(job_desc.working_directory, self.start_time)
         output_dir = path.join(self.config['DATA_DIRECTORY'], path.basename(job_desc.working_directory))
-        logger.info("Copying files to {}: {}".format(output_dir,
+        logger.debug("Copying files to {}: {}".format(output_dir,
                                                      ", ".join(new_files)))
         if self.config["DATA_DIRECTORY"] != self.config["WORKING_DIRECTORY"]:
             if not path.exists(self.config['DATA_DIRECTORY']):

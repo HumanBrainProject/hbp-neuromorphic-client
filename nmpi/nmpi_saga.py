@@ -302,7 +302,7 @@ class JobRunner(object):
             try:
                 # Check the experiment_description for a git url (clone it into the workdir) or a script (create a file into the workdir)
                 # URL: use git clone
-                git.clone(nmpi_job['experiment_description'], job_desc.working_directory)
+                git.clone('--recursive', nmpi_job['experiment_description'], job_desc.working_directory)
                 logger.debug("Cloned repository {}".format(nmpi_job['experiment_description']))
             except (sh.ErrorReturnCode_128, sh.ErrorReturnCode):
                 # SCRIPT: create file (in the current directory)

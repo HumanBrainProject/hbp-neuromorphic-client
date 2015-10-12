@@ -31,7 +31,7 @@ import saga
 import sh
 from sh import git, unzip, tar
 import nmpi
-
+import codecs
 
 DEFAULT_SCRIPT_NAME = "run.py"
 DEFAULT_PYNN_VERSION = "0.7"
@@ -308,7 +308,7 @@ class JobRunner(object):
                 # SCRIPT: create file (in the current directory)
                 logger.debug("The experiment_description appears to be a script.")
                 self._create_working_directory(job_desc.working_directory)
-                with open(job_desc.arguments[0], 'w') as job_main_script:
+                with codecs.open(job_desc.arguments[0], 'w', encoding='utf8') as job_main_script:
                     job_main_script.write(nmpi_job['experiment_description'])
 
     def _get_input_data(self, nmpi_job, job_desc):

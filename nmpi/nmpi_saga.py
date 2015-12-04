@@ -35,9 +35,9 @@ import codecs
 
 DEFAULT_SCRIPT_NAME = "run.py"
 DEFAULT_PYNN_VERSION = "0.7"
+MAX_LOG_SIZE = 10000
 
 logger = logging.getLogger("NMPI")
-
 
 # status functions
 def job_pending(nmpi_job, saga_job):
@@ -53,6 +53,14 @@ def job_running(nmpi_job, saga_job):
     return nmpi_job
 
 
+def _truncate(stream):
+    # todo: where we truncate, should save the entire log to file
+    if len(stream) > MAX_LOG_SIZE:
+        return stream[:MAX_LOG_SIZE//2] + "\n\n... truncated...\n\n" + stream[-MAX_LOG_SIZE//2:]
+    else:
+        return stream
+
+
 def job_done(nmpi_job, saga_job):
     nmpi_job['status'] = "finished"
     timestamp = datetime.now().isoformat()
@@ -60,9 +68,9 @@ def job_done(nmpi_job, saga_job):
     nmpi_job['log'] += "{}    finished\n".format(datetime.now().isoformat())
     stdout, stderr = read_output(saga_job)
     nmpi_job['log'] += "\n\n"
-    nmpi_job['log'] += stdout
+    nmpi_job['log'] += _truncate(stdout)
     nmpi_job['log'] += "\n\n"
-    nmpi_job['log'] += stderr
+    nmpi_job['log'] += _truncate(stderr)
     return nmpi_job
 
 
@@ -70,9 +78,9 @@ def job_failed(nmpi_job, saga_job):
     nmpi_job['status'] = "error"
     nmpi_job['log'] += "{}    failed\n\n".format(datetime.now().isoformat())
     stdout, stderr = read_output(saga_job)
-    nmpi_job['log'] += stderr
+    nmpi_job['log'] += _truncate(stderr)
     nmpi_job['log'] += "\n\nstdout\n------\n\n"
-    nmpi_job['log'] += stdout
+    nmpi_job['log'] += _truncate(stdout)
     return nmpi_job
 
 

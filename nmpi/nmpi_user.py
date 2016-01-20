@@ -77,6 +77,7 @@ class Client(object):
         # get schema
         req = requests.get(entrypoint, cert=self.cert, verify=self.verify, auth=self.auth)
         if req.ok:
+            self._schema = req.json()
             self.resource_map = {name: entry["list_endpoint"]
                                  for name, entry in req.json().items()}
         else:
@@ -292,16 +293,16 @@ class Client(object):
         """
         return self._query(self.resource_map["project"], verbose=verbose)
 
-    def submit_job(self, source, platform, project, config=None, inputs=None):
+    def submit_job(self, source, platform, project, config=None, inputs=None,
+                   command="run.py"):
         """
         Submit a job to the platform.
 
         Arguments:
 
         source : the Python script to be run, the URL of a public version
-                 control repository containing a file "run.py" at the top
-                 level, or a zip file containing a file "run.py" at the top
-                 level.
+                 control repository containing Python code, or a zip file
+                 containing Python code.
         platform : the neuromorphic hardware system to be used.
                    Either "hbp-pm-1" or "hbp-mc-1"
         project : the name of the project to which the job belongs
@@ -310,6 +311,8 @@ class Client(object):
                  more details.
         inputs : a list of URLs for datafiles needed as inputs to the
                  simulation.
+        command : (optional) the path to the main Python script relative to
+                  the root of the repository or zip file. Defaults to "run.py".
         """
         project_uri = self.get_project_uri(project)
         if project_uri is None:
@@ -322,6 +325,7 @@ class Client(object):
             source_code = source
         job = {
             'experiment_description': source_code,
+            'command': command,
             'hardware_platform': platform,
             'project': project_uri,
             'user': self.resource_map["user"] + "/" + self.username

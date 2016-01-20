@@ -33,7 +33,7 @@ from sh import git, unzip, tar
 import nmpi
 import codecs
 
-DEFAULT_SCRIPT_NAME = "run.py"
+DEFAULT_SCRIPT_NAME = "run.py {system}"
 DEFAULT_PYNN_VERSION = "0.7"
 MAX_LOG_SIZE = 10000
 
@@ -266,7 +266,11 @@ class JobRunner(object):
 
         if self.config['JOB_QUEUE'] is not None:
             job_desc.queue = self.config['JOB_QUEUE']  # aka SLURM "partition"
-        job_desc.arguments = [path.join(job_desc.working_directory, DEFAULT_SCRIPT_NAME),
+        script_name = nmpi_job.get("command", "")
+        if not script_name:
+            script_name = DEFAULT_SCRIPT_NAME
+        script_name = script_name.format(system=self.config['PLATFORM_NAME'])
+        job_desc.arguments = [path.join(job_desc.working_directory, script_name),
                               self.config['DEFAULT_PYNN_BACKEND']]  # TODO: allow choosing backend in "hardware_config
         job_desc.output = "saga_" + str(job_id) + '.out'
         job_desc.error = "saga_" + str(job_id) + '.err'

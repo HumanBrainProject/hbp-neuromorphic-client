@@ -218,6 +218,7 @@ class JobRunner(object):
         #       and update those.
         self._handle_output_data(nmpi_job, saga_job)
         self._update_status(nmpi_job, saga_job, default_job_states)
+        logger.debug("Status of completed job updated")
         return nmpi_job
 
     def run(self, nmpi_job):
@@ -362,13 +363,14 @@ class JobRunner(object):
                                 new_file_path)
         # append the new output to the list of item data and retrieve it
         # by POSTing to the DataItem list resource
+        logger.debug("Posting data items")
         for new_file in new_files:
             url = "{}/{}/{}".format(self.config["DATA_SERVER"], os.path.basename(job_desc.working_directory), new_file)
             resource_uri = self.client.create_data_item(url)
             nmpi_job['output_data'].append(resource_uri)
         # ... and PUTting to the job resource
         self.client.update_job(nmpi_job)
-
+        logger.debug("Handling of output data complete")
 
 def main():
     config = load_config(

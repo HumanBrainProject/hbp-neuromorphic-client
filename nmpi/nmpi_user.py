@@ -2,13 +2,14 @@
 Client for interacting with the Neuromorphic Computing Platform of the Human Brain Project.
 
 Authors: Andrew P. Davison, Domenico Guarino, UNIC, CNRS
-Copyright 2014
+Copyright 2014-2016
 
 """
 
 import os.path
 import json
 import getpass
+import logging
 try:
     from urlparse import urlparse
     from urllib import urlretrieve
@@ -19,8 +20,7 @@ except ImportError:  # Py3
 import requests
 from requests.auth import AuthBase
 
-import time
-import datetime
+logger = logging.getLogger("NMPI")
 
 
 class NMPAuth(AuthBase):
@@ -165,6 +165,7 @@ class Client(object):
             errmsg = request.json()["error"]
         except ValueError:
             errmsg = request.content
+        logger.error(errmsg)
         raise Exception("Error %s: %s" % (request.status_code, errmsg))
 
     def _query(self, resource_uri, verbose=False):

@@ -6,14 +6,11 @@ For platform users
 Installing the Python client
 ============================
 
-Download the nmpi_client package from ???? (need to put a tarball somewhere). We strongly recommend you use
-virtualenv or Anaconda. The client works with Python 2.7 and Python 3.3 or newer.
+We strongly recommend you use virtualenv or Anaconda. The client works with Python 2.7 and Python 3.3 or newer.
 
 ::
 
-  $ tar xzf nmpi_client-0.1.0.tar.gz
-  $ cd nmpi_client-0.1.0
-  $ python setup.py install
+  $ pip install hbp_neuromorphic_platform
 
 
 Format of a job

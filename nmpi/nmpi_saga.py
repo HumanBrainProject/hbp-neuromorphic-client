@@ -270,9 +270,9 @@ class JobRunner(object):
         script_name = nmpi_job.get("command", "")
         if not script_name:
             script_name = DEFAULT_SCRIPT_NAME
-        script_name = script_name.format(system=self.config['PLATFORM_NAME'])
-        job_desc.arguments = [path.join(job_desc.working_directory, script_name),
-                              self.config['DEFAULT_PYNN_BACKEND']]  # TODO: allow choosing backend in "hardware_config
+        command_line = script_name.format(system=self.config['DEFAULT_PYNN_BACKEND'])  # TODO: allow choosing backend in "hardware_config
+        command_line = path.join(job_desc.working_directory, command_line)
+        job_desc.arguments = command_line.split(" ")
         job_desc.output = "saga_" + str(job_id) + '.out'
         job_desc.error = "saga_" + str(job_id) + '.err'
         # job_desc.total_cpu_count
@@ -281,6 +281,7 @@ class JobRunner(object):
         # job_desc.threads_per_process
         # job_desc.wall_time_limit = 1
         # job_desc.total_physical_memory
+        logger.debug(job_desc.arguments)
         return job_desc
 
     def _create_working_directory(self, workdir):

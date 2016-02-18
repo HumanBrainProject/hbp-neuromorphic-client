@@ -1,6 +1,0 @@
-# This file contains the list of files that should be distributed in the PyPI package.
-README.txt
-setup.py
-nmpi/__init__.py
-nmpi/nmpi_user.py
-test/test_client.py

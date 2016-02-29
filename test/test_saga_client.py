@@ -17,7 +17,7 @@ from nmpi import nmpi_saga, nmpi_user
 
 
 NMPI_HOST = "https://www.hbpneuromorphic.eu"
-NMPI_API = "/api/v1"
+NMPI_API = "/api/v2"
 ENTRYPOINT = NMPI_HOST + NMPI_API
 VERIFY = False
 
@@ -160,7 +160,7 @@ class QueueServerInteractionTest(unittest.TestCase):
         self._submit_test_job()
         nmpi_job = self.job_runner.client.get_job(self.last_job)
         self.assertEqual(nmpi_job["status"], "submitted")
-        self.assertEqual(nmpi_job["user"], "/api/v1/user/testuser")
+        self.assertEqual(nmpi_job["user"], "/api/v2/user/testuser")
         self.assertEqual(nmpi_job["hardware_platform"], "nosetest")
 
     def test__update_status(self):

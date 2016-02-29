@@ -115,7 +115,7 @@ class HardwareClient(nmpi.Client):
 
     """
 
-    def __init__(self, username, platform, token, entrypoint="https://www.hbpneuromorphic.eu/api/v1/", verify=True):
+    def __init__(self, username, platform, token, entrypoint="https://www.hbpneuromorphic.eu/api/v2/", verify=True):
         nmpi.Client.__init__(self, username, password=None, entrypoint=entrypoint, token=token, verify=verify)
         self.platform = platform
 

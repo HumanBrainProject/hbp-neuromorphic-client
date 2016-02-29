@@ -59,7 +59,7 @@ class Client(object):
 
     def __init__(self, username,
                  password=None,
-                 entrypoint="https://nmpi.hbpneuromorphic.eu/api/v1/",
+                 entrypoint="https://nmpi.hbpneuromorphic.eu/api/v2/",
                  token=None,
                  verify=True):
         if password is None and token is None:

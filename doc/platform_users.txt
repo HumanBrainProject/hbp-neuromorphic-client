@@ -147,18 +147,18 @@ Retrieving the results of a job
      u'hardware_platform': u'NM-MC1',
      u'id': 19,
      u'input_data': [{u'id': 34,
-                      u'resource_uri': u'/api/v1/dataitem/34',
+                      u'resource_uri': u'/api/v2/dataitem/34',
                       u'url': u'http://aloi.science.uva.nl/www-images/90/90.jpg'}],
      u'log': u'',
      u'output_data': [{u'id': 35,
-                      u'resource_uri': u'/api/v1/dataitem/35',
+                      u'resource_uri': u'/api/v2/dataitem/35',
                       u'url': u'http://example.com/my_output_data.h5'}],
-     u'project': u'/api/v1/project/1',
-     u'resource_uri': u'/api/v1/queue/19',
+     u'project': u'/api/v2/project/1',
+     u'resource_uri': u'/api/v2/queue/19',
      u'status': u'finished',
      u'timestamp_completion': u'2014-08-13T21:02:37.541732',
      u'timestamp_submission': u'2014-08-13T19:40:43.964541',
-     u'user': u'/api/v1/user/apdavison'}
+     u'user': u'/api/v2/user/apdavison'}
 
 
 

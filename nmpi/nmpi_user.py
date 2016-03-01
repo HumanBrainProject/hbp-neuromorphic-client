@@ -83,8 +83,6 @@ class Client(object):
         else:
             self._handle_error(req)
 
-
-
     def _hbp_auth(self, username, password):
         """
         """
@@ -156,8 +154,6 @@ class Client(object):
         else:
             raise Exception("Something went wrong. Status code {} from NMPI, expected 302".format(rNMPI1.status_code))
 
-
-
     def _handle_error(self, request):
         """
         Deal with requests that return an error code (404, 500, etc.)
@@ -169,8 +165,6 @@ class Client(object):
         except ValueError:
             errmsg = request.content
         raise Exception("Error %s: %s" % (request.status_code, errmsg))
-
-
 
     def _query(self, resource_uri, verbose=False):
         """
@@ -190,8 +184,6 @@ class Client(object):
         else:
             self._handle_error(req)
 
-
-
     def _post(self, resource_uri, data):
         """
         Create a new resource.
@@ -204,8 +196,6 @@ class Client(object):
         if not req.ok:
             self._handle_error(req)
         return req.json()
-
-
 
     def _put(self, resource_uri, data):
         """
@@ -220,8 +210,6 @@ class Client(object):
             self._handle_error(req)
         return data
 
-
-
     def _delete(self, resource_uri):
         """
         Deletes a resource
@@ -232,15 +220,11 @@ class Client(object):
         if not req.ok:
             self._handle_error(req)
 
-
-
     def list_collabs(self, verbose=False):
         """
         Retrieve a list of the collabs to which you have access.
         """
         return self._query(self.resource_map["collab_id"], verbose=verbose)
-
-
 
     def submit_job(self, source, platform, collab_id, config=None, inputs=None):
         """
@@ -271,7 +255,7 @@ class Client(object):
             'experiment_description': source_code,
             'hardware_platform': platform,
             'collab_id': collab_id,
-            'user': self.resource_map["user"] + "/" + self.username
+            'user_id': self.username
         }
 
         if inputs is not None:
@@ -282,17 +266,13 @@ class Client(object):
         print("Job submitted")
         return result["id"]
 
-
-
     def job_status(self, job_id):
         """
         Return the current status of the job with ID `job_id` (integer).
         """
         return self.get_job(job_id)["status"]
 
-
-
-    def get_job(self, job_id):
+    def get_job(self, job_id, with_log=True):
         """
         Return full details of the job with ID `job_id` (integer).
         """
@@ -301,10 +281,16 @@ class Client(object):
             if job_uri:
                 job = self._query(job_uri[0])
                 assert job["id"] == job_id
+                if with_log:
+                    try:
+                        log = self._query(self.resource_map['log'] + "/{}/".format(job_id))
+                    except Exception:
+                        job["log"] = ''
+                    else:
+                        assert log["resource_uri"] == '/api/v2/log/{}'.format(job_id)
+                        job["log"] = log["content"]
                 return job
         raise Exception("No such job: %s" % job_id)
-
-
 
     def remove_completed_job(self, job_id):
         """
@@ -314,8 +300,6 @@ class Client(object):
         """
         self._delete("{}/{}".format(self.resource_map["results"], job_id))
 
-
-
     def remove_queued_job(self, job_id):
         """
         Remove a job from the interface.
@@ -323,8 +307,6 @@ class Client(object):
         The job is hidden rather than being permanently deleted.
         """
         self._delete("{}/{}".format(self.resource_map["queue"], job_id))
-
-
 
     def queued_jobs(self, verbose=False):
         """
@@ -338,8 +320,6 @@ class Client(object):
         """
         return self._query(self.resource_map["queue"] + "/submitted/", verbose=verbose)
 
-
-
     def completed_jobs(self, verbose=False):
         """
         Return the list of completed jobs belonging to the current user.
@@ -352,8 +332,6 @@ class Client(object):
         """
         # todo: add kwargs `project_name` to allow filtering of the jobs
         return self._query(self.resource_map["results"], verbose=verbose)
-
-
 
     def download_data_url(self, job, local_dir=".", include_input_data=False):
         """
@@ -379,8 +357,6 @@ class Client(object):
             urlretrieve(url, local_filename)
             filenames.append(local_filename)
         return filenames
-
-
 
     def create_data_item(self, url):
         """

@@ -12,12 +12,13 @@ from datetime import datetime
 from nmpi import nmpi_user
 
 
-ENTRYPOINT = "https://www.hbpneuromorphic.eu/api/v2/"
-#ENTRYPOINT = "http://127.0.0.1:8999/api/v2/"
+#ENTRYPOINT = "https://nmpi.hbpneuromorphic.eu/api/v2/"
+ENTRYPOINT = "http://127.0.0.1:8000/api/v2/"
 #ENTRYPOINT = "https://192.168.59.103:32768/api/v2/"
 #ENTRYPOINT = "https://nmpi-tmp-1.apdavison.cont.tutum.io:49157/api/v2/"
 
-TEST_TOKEN = "boIeArQtaH1Vwibq4AnaZE91diEQASN9ZV1BO-f2tFi7dJkwowIJP6Vhcf4b6uj0HtiyshEheugRek2EDFHiNZHlZtDAVNUTypnN0CnA5yPIPqv6CaMsjuByumMdIenw"
+#TEST_TOKEN = "boIeArQtaH1Vwibq4AnaZE91diEQASN9ZV1BO-f2tFi7dJkwowIJP6Vhcf4b6uj0HtiyshEheugRek2EDFHiNZHlZtDAVNUTypnN0CnA5yPIPqv6CaMsjuByumMdIenw"
+TEST_TOKEN = "faketoken"
 
 VERIFY = False
 
@@ -53,27 +54,19 @@ class QueueInteractionTest(unittest.TestCase):
 
     def setUp(self):
         self.user_client = nmpi_user.Client("testuser", entrypoint=ENTRYPOINT, token=TEST_TOKEN, verify=VERIFY)
-        self.project_name = "nosetest"
+        self.collab_id = "nosetest"
         self.job_id = None
         # print self.user_client.resource_map
 
-    def test__1_create_project(self):
-        self.user_client.create_project( short_name=self.project_name, full_name=self.project_name, description="test", members=['testuser', 'admin'] )
-
-
-    def test__2_get_project(self):
-        self.user_client.get_project(self.user_client.get_project_uri(self.project_name))
-
-    def test__3_list_projects(self):
-        self.user_client.list_projects(verbose=True)
-
-    def test__4_submit_job(self):
-        self.job_id = self.user_client.submit_job( source=simple_test_script, platform="nosetest_platform", project=self.project_name)
+    def test__1_submit_job(self):
+        self.job_id = self.user_client.submit_job(source=simple_test_script,
+                                                  platform="nosetest_platform",
+                                                  collab_id=self.collab_id)
         print "job_id: ", self.job_id
         print self.user_client.job_status(self.job_id)
         print self.user_client.get_job(self.job_id)
 
-    def test__5_queued_jobs(self):
+    def test__2_queued_jobs(self):
         # per platform
         self.user_client.queued_jobs(verbose=True)
 

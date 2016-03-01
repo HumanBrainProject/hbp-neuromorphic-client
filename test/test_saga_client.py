@@ -16,7 +16,8 @@ import saga
 from nmpi import nmpi_saga, nmpi_user
 
 
-NMPI_HOST = "https://www.hbpneuromorphic.eu"
+#NMPI_HOST = "https://nmpi.hbpneuromorphic.eu"
+NMPI_HOST = "http://127.0.0.1:8000"
 NMPI_API = "/api/v2"
 ENTRYPOINT = NMPI_HOST + NMPI_API
 VERIFY = False
@@ -138,8 +139,7 @@ class QueueServerInteractionTest(unittest.TestCase):
         self.user_client = nmpi_user.Client("testuser", token=TEST_TOKEN,
                                             entrypoint=ENTRYPOINT,
                                             verify=VERIFY)
-        self.project_name = datetime.now().strftime("test_%Y%m%d_%H%M%S")
-        self.user_client.create_project(self.project_name, members=['testuser', 'nmpi'])
+        self.collab_id = datetime.now().strftime("test_%Y%m%d_%H%M%S")
         self.job_runner = nmpi_saga.JobRunner(dict(
             JOB_SERVICE_ADAPTOR="fork://localhost",
             AUTH_USER="nmpi",
@@ -154,21 +154,22 @@ class QueueServerInteractionTest(unittest.TestCase):
         self.last_job = self.user_client.submit_job(
             source=simple_test_script,
             platform="nosetest",
-            project=self.project_name)
+            collab_id=self.collab_id)
 
     def test__get_next_job(self):
         self._submit_test_job()
         nmpi_job = self.job_runner.client.get_job(self.last_job)
         self.assertEqual(nmpi_job["status"], "submitted")
-        self.assertEqual(nmpi_job["user"], "/api/v2/user/testuser")
+        self.assertEqual(nmpi_job["user_id"], "testuser")
         self.assertEqual(nmpi_job["hardware_platform"], "nosetest")
 
     def test__update_status(self):
         self._submit_test_job()
         nmpi_job = self.job_runner.client.get_job(self.last_job)
-        nmpi_job = self.job_runner._update_status(nmpi_job, MockSagaJob(saga.job.RUNNING))
+        nmpi_job = self.job_runner._update_status(nmpi_job, MockSagaJob(saga.job.RUNNING),
+                                                  nmpi_saga.default_job_states)
         self.assertEqual(nmpi_job["status"], "running")
-        self.assertEqual(self.user_client.get_job(nmpi_job['id']), nmpi_job)
+        self.assertEqual(self.user_client.get_job(nmpi_job['id'], with_log=False), nmpi_job)
 
     def test__remove_queued_job(self):
         # create a job

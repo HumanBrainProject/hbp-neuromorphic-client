@@ -115,7 +115,7 @@ class HardwareClient(nmpi.Client):
 
     """
 
-    def __init__(self, username, platform, token, entrypoint="https://www.hbpneuromorphic.eu/api/v2/", verify=True):
+    def __init__(self, username, platform, token, entrypoint="https://nmpi.hbpneuromorphic.eu/api/v2/", verify=True):
         nmpi.Client.__init__(self, username, password=None, entrypoint=entrypoint, token=token, verify=verify)
         self.platform = platform
 
@@ -129,7 +129,12 @@ class HardwareClient(nmpi.Client):
         return job_nmpi
 
     def update_job(self, job):
-        return self._put(job["resource_uri"], job)
+        log = job.pop("log", None)
+        response = self._put(job["resource_uri"], job)
+        if log:
+            log_response = self._put("/api/v2/log/{}".format(job["id"]),
+                                     {"content": log})
+        return response
 
     def reset_job(self, job):
         """
@@ -137,7 +142,8 @@ class HardwareClient(nmpi.Client):
         reset its status to "submitted".
         """
         job["status"] = "submitted"
-        job["log"] += "reset status to 'submitted'\n"
+        log_response = self._put("/api/v2/log/{}".format(job["id"]),
+                                 {"content": "reset status to 'submitted'\n"})
         return self._put(job["resource_uri"], job)
 
 

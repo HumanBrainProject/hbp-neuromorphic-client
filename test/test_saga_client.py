@@ -16,11 +16,11 @@ import saga
 from nmpi import nmpi_saga, nmpi_user
 
 
-#NMPI_HOST = "https://nmpi.hbpneuromorphic.eu"
-NMPI_HOST = "http://127.0.0.1:8000"
+NMPI_HOST = "https://nmpi.hbpneuromorphic.eu"
+#NMPI_HOST = "http://127.0.0.1:8000"
 NMPI_API = "/api/v2"
 ENTRYPOINT = NMPI_HOST + NMPI_API
-VERIFY = False
+VERIFY = True
 
 TEST_TOKEN = "boIeArQtaH1Vwibq4AnaZE91diEQASN9ZV1BO-f2tFi7dJkwowIJP6Vhcf4b6uj0HtiyshEheugRek2EDFHiNZHlZtDAVNUTypnN0CnA5yPIPqv6CaMsjuByumMdIenw"
 HARDWARE_TOKEN = "D7oyE7C8-TlwT88Xt9TyiCWwivUkes7lukaomwrfTq01RravZXeDHQhRSwSIvHACHZoJhbrxTqFr5ADe853SDvlVK9JGz8oQMqAaNUE7WH39J16sD5hFs91a0s2SGzuO"

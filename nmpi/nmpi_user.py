@@ -88,11 +88,11 @@ class Client(object):
         """
         client_id = r'nmpi'
         client_secret = r'b8IMyR-dd-qR6k3VAbHRYYAngKySClc9olDr084HpDmr1fjtx6TMHUwjpBnKcZc2uQfIU3BAAJplhoH42BsiyQ'
-        redirect_uri = self.server + '/complete/hbp-oauth2/'
+        redirect_uri = self.server + '/complete/hbp/'
 
         self.session = requests.Session()
         # 1. login button on NMPI
-        rNMPI1 = self.session.get(self.server + "/login/hbp-oauth2/?next=/",
+        rNMPI1 = self.session.get(self.server + "/login/hbp/?next=/",
                                   allow_redirects=False, verify=True)
         # 2. receives a redirect
         if rNMPI1.status_code == 302:

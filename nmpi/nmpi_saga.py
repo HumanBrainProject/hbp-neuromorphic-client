@@ -293,13 +293,13 @@ class JobRunner(object):
         If it is the URL of a zip or .tar.gz archive, download and unpack it.
         Otherwise, the experiment_description is the code: write it to a file.
         """
-        url_candidate = urlparse(nmpi_job['experiment_description'])
+        url_candidate = urlparse(nmpi_job['code'])
         logger.debug("Get code: %s %s", url_candidate.netloc, url_candidate.path)
         if url_candidate.scheme and url_candidate.path.endswith((".tar.gz", ".zip", ".tgz")):
             self._create_working_directory(job_desc.working_directory)
             target = os.path.join(job_desc.working_directory, os.path.basename(url_candidate.path))
-            urlretrieve(nmpi_job['experiment_description'], target)
-            logger.debug("Retrieved file from {} to local target {}".format(nmpi_job['experiment_description'], target))
+            urlretrieve(nmpi_job['code'], target)
+            logger.debug("Retrieved file from {} to local target {}".format(nmpi_job['code'], target))
             if url_candidate.path.endswith((".tar.gz", ".tgz")):
                 tar("xzf", target, directory=job_desc.working_directory)
             elif url_candidate.path.endswith(".zip"):
@@ -308,14 +308,14 @@ class JobRunner(object):
             try:
                 # Check the experiment_description for a git url (clone it into the workdir) or a script (create a file into the workdir)
                 # URL: use git clone
-                git.clone(nmpi_job['experiment_description'], job_desc.working_directory)
-                logger.debug("Cloned repository {}".format(nmpi_job['experiment_description']))
+                git.clone(nmpi_job['code'], job_desc.working_directory)
+                logger.debug("Cloned repository {}".format(nmpi_job['code']))
             except (sh.ErrorReturnCode_128, sh.ErrorReturnCode):
                 # SCRIPT: create file (in the current directory)
-                logger.debug("The experiment_description appears to be a script.")
+                logger.debug("The code field appears to be a script.")
                 self._create_working_directory(job_desc.working_directory)
                 with open(job_desc.arguments[0], 'w') as job_main_script:
-                    job_main_script.write(nmpi_job['experiment_description'])
+                    job_main_script.write(nmpi_job['code'])
 
     def _get_input_data(self, nmpi_job, job_desc):
         """

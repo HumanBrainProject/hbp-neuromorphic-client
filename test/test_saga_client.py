@@ -280,7 +280,7 @@ class CodeRetrievalTest(unittest.TestCase):
         ))
         job = MockSagaJob("submitted", working_directory=self.tmp_run_dir)
         mock_nmpi_job = {
-            "experiment_description": "file://{}".format(zipfile)
+            "code": "file://{}".format(zipfile)
         }
         job_runner._get_code(mock_nmpi_job, job)
         self.assertEqual(os.listdir(self.tmp_run_dir),
@@ -306,7 +306,7 @@ class CodeRetrievalTest(unittest.TestCase):
         ))
         job = MockSagaJob("submitted", working_directory=self.tmp_run_dir)
         mock_nmpi_job = {
-            "experiment_description": "file://{}".format(archive)
+            "code": "file://{}".format(archive)
         }
         job_runner._get_code(mock_nmpi_job, job)
         self.assertEqual(os.listdir(self.tmp_run_dir),

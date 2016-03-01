@@ -92,7 +92,7 @@ class Client(object):
 
         self.session = requests.Session()
         # 1. login button on NMPI
-        rNMPI1 = self.session.get(self.server + "/login/hbp/?next=/",
+        rNMPI1 = self.session.get(self.server + "/login/hbp/?next=/config.json",
                                   allow_redirects=False, verify=True)
         # 2. receives a redirect
         if rNMPI1.status_code == 302:
@@ -135,10 +135,10 @@ class Client(object):
                     # check good communication
                     if rNMPI2.status_code == requests.codes.ok:
                         # check success address
-                        if rNMPI2.url == self.server + '/':
+                        if rNMPI2.url == self.server + '/config.json':
                             # print rNMPI2.text
                             res = rNMPI2.json()
-                            self.token = res['access_token']
+                            self.token = res['auth']['token']['access_token']
                         # unauthorized
                         else:
                             if 'error' in rNMPI2.url:
@@ -252,7 +252,7 @@ class Client(object):
         else:
             source_code = source
         job = {
-            'experiment_description': source_code,
+            'code': source_code,
             'hardware_platform': platform,
             'collab_id': collab_id,
             'user_id': self.username

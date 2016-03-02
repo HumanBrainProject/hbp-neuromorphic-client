@@ -123,7 +123,7 @@ class HardwareClient(nmpi.Client):
 
     """
 
-    def __init__(self, username, platform, token, entrypoint="https://www.hbpneuromorphic.eu/api/v1/", verify=True):
+    def __init__(self, username, platform, token, entrypoint="https://nmpi.hbpneuromorphic.eu/api/v2/", verify=True):
         nmpi.Client.__init__(self, username, password=None, entrypoint=entrypoint, token=token, verify=verify)
         self.platform = platform
 
@@ -137,7 +137,12 @@ class HardwareClient(nmpi.Client):
         return job_nmpi
 
     def update_job(self, job):
-        return self._put(job["resource_uri"], job)
+        log = job.pop("log", None)
+        response = self._put(job["resource_uri"], job)
+        if log:
+            log_response = self._put("/api/v2/log/{}".format(job["id"]),
+                                     {"content": log})
+        return response
 
     def reset_job(self, job):
         """
@@ -145,7 +150,8 @@ class HardwareClient(nmpi.Client):
         reset its status to "submitted".
         """
         job["status"] = "submitted"
-        job["log"] += "reset status to 'submitted'\n"
+        log_response = self._put("/api/v2/log/{}".format(job["id"]),
+                                 {"content": "reset status to 'submitted'\n"})
         return self._put(job["resource_uri"], job)
 
 
@@ -301,13 +307,13 @@ class JobRunner(object):
         If it is the URL of a zip or .tar.gz archive, download and unpack it.
         Otherwise, the experiment_description is the code: write it to a file.
         """
-        url_candidate = urlparse(nmpi_job['experiment_description'])
+        url_candidate = urlparse(nmpi_job['code'])
         logger.debug("Get code: %s %s", url_candidate.netloc, url_candidate.path)
         if url_candidate.scheme and url_candidate.path.endswith((".tar.gz", ".zip", ".tgz")):
             self._create_working_directory(job_desc.working_directory)
             target = os.path.join(job_desc.working_directory, os.path.basename(url_candidate.path))
-            urlretrieve(nmpi_job['experiment_description'], target)
-            logger.debug("Retrieved file from {} to local target {}".format(nmpi_job['experiment_description'], target))
+            urlretrieve(nmpi_job['code'], target)
+            logger.debug("Retrieved file from {} to local target {}".format(nmpi_job['code'], target))
             if url_candidate.path.endswith((".tar.gz", ".tgz")):
                 tar("xzf", target, directory=job_desc.working_directory)
             elif url_candidate.path.endswith(".zip"):
@@ -316,14 +322,14 @@ class JobRunner(object):
             try:
                 # Check the experiment_description for a git url (clone it into the workdir) or a script (create a file into the workdir)
                 # URL: use git clone
-                git.clone('--recursive', nmpi_job['experiment_description'], job_desc.working_directory)
+                git.clone('--recursive', nmpi_job['code'], job_desc.working_directory)
                 logger.debug("Cloned repository {}".format(nmpi_job['experiment_description']))
             except (sh.ErrorReturnCode_128, sh.ErrorReturnCode):
                 # SCRIPT: create file (in the current directory)
-                logger.debug("The experiment_description appears to be a script.")
+                logger.debug("The code field appears to be a script.")
                 self._create_working_directory(job_desc.working_directory)
                 with codecs.open(job_desc.arguments[0], 'w', encoding='utf8') as job_main_script:
-                    job_main_script.write(nmpi_job['experiment_description'])
+                    job_main_script.write(nmpi_job['code'])
 
     def _get_input_data(self, nmpi_job, job_desc):
         """

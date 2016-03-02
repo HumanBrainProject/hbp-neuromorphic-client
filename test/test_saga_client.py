@@ -16,10 +16,11 @@ import saga
 from nmpi import nmpi_saga, nmpi_user
 
 
-NMPI_HOST = "https://www.hbpneuromorphic.eu"
-NMPI_API = "/api/v1"
+NMPI_HOST = "https://nmpi.hbpneuromorphic.eu"
+#NMPI_HOST = "http://127.0.0.1:8000"
+NMPI_API = "/api/v2"
 ENTRYPOINT = NMPI_HOST + NMPI_API
-VERIFY = False
+VERIFY = True
 
 TEST_TOKEN = "boIeArQtaH1Vwibq4AnaZE91diEQASN9ZV1BO-f2tFi7dJkwowIJP6Vhcf4b6uj0HtiyshEheugRek2EDFHiNZHlZtDAVNUTypnN0CnA5yPIPqv6CaMsjuByumMdIenw"
 HARDWARE_TOKEN = "D7oyE7C8-TlwT88Xt9TyiCWwivUkes7lukaomwrfTq01RravZXeDHQhRSwSIvHACHZoJhbrxTqFr5ADe853SDvlVK9JGz8oQMqAaNUE7WH39J16sD5hFs91a0s2SGzuO"
@@ -138,8 +139,7 @@ class QueueServerInteractionTest(unittest.TestCase):
         self.user_client = nmpi_user.Client("testuser", token=TEST_TOKEN,
                                             entrypoint=ENTRYPOINT,
                                             verify=VERIFY)
-        self.project_name = datetime.now().strftime("test_%Y%m%d_%H%M%S")
-        self.user_client.create_project(self.project_name, members=['testuser', 'nmpi'])
+        self.collab_id = datetime.now().strftime("test_%Y%m%d_%H%M%S")
         self.job_runner = nmpi_saga.JobRunner(dict(
             JOB_SERVICE_ADAPTOR="fork://localhost",
             AUTH_USER="nmpi",
@@ -154,21 +154,22 @@ class QueueServerInteractionTest(unittest.TestCase):
         self.last_job = self.user_client.submit_job(
             source=simple_test_script,
             platform="nosetest",
-            project=self.project_name)
+            collab_id=self.collab_id)
 
     def test__get_next_job(self):
         self._submit_test_job()
         nmpi_job = self.job_runner.client.get_job(self.last_job)
         self.assertEqual(nmpi_job["status"], "submitted")
-        self.assertEqual(nmpi_job["user"], "/api/v1/user/testuser")
+        self.assertEqual(nmpi_job["user_id"], "testuser")
         self.assertEqual(nmpi_job["hardware_platform"], "nosetest")
 
     def test__update_status(self):
         self._submit_test_job()
         nmpi_job = self.job_runner.client.get_job(self.last_job)
-        nmpi_job = self.job_runner._update_status(nmpi_job, MockSagaJob(saga.job.RUNNING))
+        nmpi_job = self.job_runner._update_status(nmpi_job, MockSagaJob(saga.job.RUNNING),
+                                                  nmpi_saga.default_job_states)
         self.assertEqual(nmpi_job["status"], "running")
-        self.assertEqual(self.user_client.get_job(nmpi_job['id']), nmpi_job)
+        self.assertEqual(self.user_client.get_job(nmpi_job['id'], with_log=False), nmpi_job)
 
     def test__remove_queued_job(self):
         # create a job
@@ -279,7 +280,7 @@ class CodeRetrievalTest(unittest.TestCase):
         ))
         job = MockSagaJob("submitted", working_directory=self.tmp_run_dir)
         mock_nmpi_job = {
-            "experiment_description": "file://{}".format(zipfile)
+            "code": "file://{}".format(zipfile)
         }
         job_runner._get_code(mock_nmpi_job, job)
         self.assertEqual(os.listdir(self.tmp_run_dir),
@@ -305,7 +306,7 @@ class CodeRetrievalTest(unittest.TestCase):
         ))
         job = MockSagaJob("submitted", working_directory=self.tmp_run_dir)
         mock_nmpi_job = {
-            "experiment_description": "file://{}".format(archive)
+            "code": "file://{}".format(archive)
         }
         job_runner._get_code(mock_nmpi_job, job)
         self.assertEqual(os.listdir(self.tmp_run_dir),

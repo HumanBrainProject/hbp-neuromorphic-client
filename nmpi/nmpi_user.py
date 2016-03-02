@@ -37,6 +37,7 @@ class NMPAuth(AuthBase):
         return r
 
 
+
 class Client(object):
     """
     Client for interacting with the Neuromorphic Computing Platform of the Human Brain Project.
@@ -58,7 +59,7 @@ class Client(object):
 
     def __init__(self, username,
                  password=None,
-                 entrypoint="https://www.hbpneuromorphic.eu/api/v1/",
+                 entrypoint="https://nmpi.hbpneuromorphic.eu/api/v2/",
                  token=None,
                  verify=True):
         if password is None and token is None:
@@ -88,11 +89,11 @@ class Client(object):
         """
         client_id = r'nmpi'
         client_secret = r'b8IMyR-dd-qR6k3VAbHRYYAngKySClc9olDr084HpDmr1fjtx6TMHUwjpBnKcZc2uQfIU3BAAJplhoH42BsiyQ'
-        redirect_uri = self.server + '/complete/hbp-oauth2/'
+        redirect_uri = self.server + '/complete/hbp/'
 
         self.session = requests.Session()
         # 1. login button on NMPI
-        rNMPI1 = self.session.get(self.server + "/login/hbp-oauth2/?next=/",
+        rNMPI1 = self.session.get(self.server + "/login/hbp/?next=/config.json",
                                   allow_redirects=False, verify=True)
         # 2. receives a redirect
         if rNMPI1.status_code == 302:
@@ -135,10 +136,10 @@ class Client(object):
                     # check good communication
                     if rNMPI2.status_code == requests.codes.ok:
                         # check success address
-                        if rNMPI2.url == self.server + '/':
+                        if rNMPI2.url == self.server + '/config.json':
                             # print rNMPI2.text
                             res = rNMPI2.json()
-                            self.token = res['access_token']
+                            self.token = res['auth']['token']['access_token']
                         # unauthorized
                         else:
                             if 'error' in rNMPI2.url:
@@ -153,7 +154,6 @@ class Client(object):
                 raise Exception("Something went wrong. Status code {} from HBP, expected 302".format(rHBP1.status_code))
         else:
             raise Exception("Something went wrong. Status code {} from NMPI, expected 302".format(rNMPI1.status_code))
-
 
     def _handle_error(self, request):
         """
@@ -222,79 +222,13 @@ class Client(object):
         if not req.ok:
             self._handle_error(req)
 
-    def create_project(self, short_name, full_name=None, description=None, members=None):
+    def list_collabs(self, verbose=False):
         """
-        Create a new project.
-
-        Arguments
-        ---------
-
-        short_name : a unique identifier for the project, consisting of only
-                     letters, numbers and underscores.
-        full_name : (optional) a longer name for the project, may contain spaces.
-        description : (optional) a detailed description of the project.
-        members : (optional) a list of usernames allowed to access the project
-                  (by default the current user has access).
+        Retrieve a list of the collabs to which you have access.
         """
-        if members is None:
-            members = []
-        project = {
-            "short_name": short_name,
-            "full_name": full_name,
-            "description": description,
-            "members": [{"username": member, "resource_uri": self.resource_map["user"] + "/" + member}
-                        for member in members]
-        }
-        res = self._post(self.resource_map["project"], project)
-        if isinstance(res, dict):
-            print("Project %s created" % short_name)
-        return res
+        return self._query(self.resource_map["collab_id"], verbose=verbose)
 
-    def get_project(self, project_uri):
-        """
-        Retrieve data about a project, given its URI.
-
-        If you know the project name but not its URI,
-        use ``c.get_project(c.get_project_uri(name))``.
-        """
-        req = requests.get(self.server + project_uri, auth=self.auth, cert=self.cert, verify=self.verify)
-        if req.ok:
-            return req.json()
-        else:
-            self._handle_error(req)
-
-    def get_project_uri(self, project_name):
-        """
-        Obtain the URI of a project given its short name.
-        """
-        uris = self._query(self.resource_map["project"] + "?short_name={}".format(project_name))
-        if uris:
-            return uris[0]
-        else:
-            print("Project '%s' not found." % project_name)
-            return None
-
-    def update_project(self, project_uri, full_name=None, description=None):
-        project = self.get_project(project_uri)
-        if full_name is not None:
-            project["full_name"] = full_name
-        if description is not None:
-            project["description"] = description
-        res = self._put(project_uri, project)
-
-    def add_project_member(self, project_uri, member):
-        raise NotImplementedError
-
-    def delete_project_member(self, project_uri, member):
-        raise NotImplementedError
-
-    def list_projects(self, verbose=False):
-        """
-        Retrieve a list of the projects to which you have access.
-        """
-        return self._query(self.resource_map["project"], verbose=verbose)
-
-    def submit_job(self, source, platform, project, config=None, inputs=None,
+    def submit_job(self, source, platform, collab_id, config=None, inputs=None,
                    command="run.py"):
         """
         Submit a job to the platform.
@@ -306,7 +240,7 @@ class Client(object):
                  containing Python code.
         platform : the neuromorphic hardware system to be used.
                    Either "hbp-pm-1" or "hbp-mc-1"
-        project : the name of the project to which the job belongs
+        collab_id : the ID of the collab to which the job belongs
         config : (optional) a dictionary containing configuration information
                  for the hardware platform. See the Platform Guidebook for
                  more details.
@@ -315,9 +249,6 @@ class Client(object):
         command : (optional) the path to the main Python script relative to
                   the root of the repository or zip file. Defaults to "run.py".
         """
-        project_uri = self.get_project_uri(project)
-        if project_uri is None:
-            raise Exception("Project '%s' does not exist. You must first create it." % project)
         source = os.path.expanduser(source)
         if os.path.exists(source) and os.path.splitext(source)[1] == ".py":
             with open(source, "r") as fp:
@@ -325,11 +256,11 @@ class Client(object):
         else:
             source_code = source
         job = {
-            'experiment_description': source_code,
+            'code': source_code,
             'command': command,
             'hardware_platform': platform,
-            'project': project_uri,
-            'user': self.resource_map["user"] + "/" + self.username
+            'collab_id': collab_id,
+            'user_id': self.username
         }
 
         if inputs is not None:
@@ -346,7 +277,7 @@ class Client(object):
         """
         return self.get_job(job_id)["status"]
 
-    def get_job(self, job_id):
+    def get_job(self, job_id, with_log=True):
         """
         Return full details of the job with ID `job_id` (integer).
         """
@@ -355,6 +286,14 @@ class Client(object):
             if job_uri:
                 job = self._query(job_uri[0])
                 assert job["id"] == job_id
+                if with_log:
+                    try:
+                        log = self._query(self.resource_map['log'] + "/{}/".format(job_id))
+                    except Exception:
+                        job["log"] = ''
+                    else:
+                        assert log["resource_uri"] == '/api/v2/log/{}'.format(job_id)
+                        job["log"] = log["content"]
                 return job
         raise Exception("No such job: %s" % job_id)
 

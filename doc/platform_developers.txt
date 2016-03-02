@@ -55,7 +55,7 @@ The address of the remote NMPI job server is then specified:
 
     # NPI addresses
     NMPI_HOST=http://157.136.240.232
-    NMPI_API=/api/v1/
+    NMPI_API=/api/v2/
 
 and the identifier for your platform:
 

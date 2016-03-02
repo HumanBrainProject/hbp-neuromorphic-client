@@ -42,14 +42,18 @@ logger = logging.getLogger("NMPI")
 # status functions
 def job_pending(nmpi_job, saga_job):
     nmpi_job['status'] = "submitted"
-    nmpi_job['log'] += "Job ID: {}\n".format(saga_job.id)
-    nmpi_job['log'] += "{}    pending\n".format(datetime.now().isoformat())
+    log = nmpi_job.pop("log", str())
+    log += "Job ID: {}\n".format(saga_job.id)
+    log += "{}    pending\n".format(datetime.now().isoformat())
+    nmpi_job["log"] = log
     return nmpi_job
 
 
 def job_running(nmpi_job, saga_job):
     nmpi_job['status'] = "running"
-    nmpi_job['log'] += "{}    running\n".format(datetime.now().isoformat())
+    log = nmpi_job.pop("log", str())
+    log += "{}    running\n".format(datetime.now().isoformat())
+    nmpi_job["log"] = log
     return nmpi_job
 
 
@@ -65,22 +69,26 @@ def job_done(nmpi_job, saga_job):
     nmpi_job['status'] = "finished"
     timestamp = datetime.now().isoformat()
     nmpi_job['timestamp_completion'] = timestamp
-    nmpi_job['log'] += "{}    finished\n".format(datetime.now().isoformat())
+    log = nmpi_job.pop("log", str())
+    log += "{}    finished\n".format(datetime.now().isoformat())
     stdout, stderr = read_output(saga_job)
-    nmpi_job['log'] += "\n\n"
-    nmpi_job['log'] += _truncate(stdout)
-    nmpi_job['log'] += "\n\n"
-    nmpi_job['log'] += _truncate(stderr)
+    log += "\n\n"
+    log += _truncate(stdout)
+    log += "\n\n"
+    log += _truncate(stderr)
+    nmpi_job["log"] = log
     return nmpi_job
 
 
 def job_failed(nmpi_job, saga_job):
     nmpi_job['status'] = "error"
-    nmpi_job['log'] += "{}    failed\n\n".format(datetime.now().isoformat())
+    log = nmpi_job.pop("log", str())
+    log += "{}    failed\n\n".format(datetime.now().isoformat())
     stdout, stderr = read_output(saga_job)
-    nmpi_job['log'] += _truncate(stderr)
-    nmpi_job['log'] += "\n\nstdout\n------\n\n"
-    nmpi_job['log'] += _truncate(stdout)
+    log += _truncate(stderr)
+    log += "\n\nstdout\n------\n\n"
+    log += _truncate(stdout)
+    nmpi_job["log"] = log
     return nmpi_job
 
 
@@ -305,7 +313,7 @@ class JobRunner(object):
 
         If the experiment description is the URL of a Git repository, try to clone it.
         If it is the URL of a zip or .tar.gz archive, download and unpack it.
-        Otherwise, the experiment_description is the code: write it to a file.
+        Otherwise, the content of "code" is the code: write it to a file.
         """
         url_candidate = urlparse(nmpi_job['code'])
         logger.debug("Get code: %s %s", url_candidate.netloc, url_candidate.path)
@@ -320,10 +328,10 @@ class JobRunner(object):
                 unzip(target, d=job_desc.working_directory)
         else:
             try:
-                # Check the experiment_description for a git url (clone it into the workdir) or a script (create a file into the workdir)
+                # Check the "code" field for a git url (clone it into the workdir) or a script (create a file into the workdir)
                 # URL: use git clone
                 git.clone('--recursive', nmpi_job['code'], job_desc.working_directory)
-                logger.debug("Cloned repository {}".format(nmpi_job['experiment_description']))
+                logger.debug("Cloned repository {}".format(nmpi_job['code']))
             except (sh.ErrorReturnCode_128, sh.ErrorReturnCode):
                 # SCRIPT: create file (in the current directory)
                 logger.debug("The code field appears to be a script.")

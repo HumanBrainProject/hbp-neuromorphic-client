@@ -69,6 +69,8 @@ def job_done(nmpi_job, saga_job):
     nmpi_job['status'] = "finished"
     timestamp = datetime.now().isoformat()
     nmpi_job['timestamp_completion'] = timestamp
+    nmpi_job['resource_usage'] = 1.0  # todo: report the actual usage
+    nmpi_job['provenance'] = {}  # todo: report provenance information
     log = nmpi_job.pop("log", str())
     log += "{}    finished\n".format(datetime.now().isoformat())
     stdout, stderr = read_output(saga_job)
@@ -386,6 +388,7 @@ class JobRunner(object):
         # ... and PUTting to the job resource
         self.client.update_job(nmpi_job)
         logger.debug("Handling of output data complete")
+
 
 def main():
     config = load_config(

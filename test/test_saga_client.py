@@ -16,14 +16,15 @@ import saga
 from nmpi import nmpi_saga, nmpi_user
 
 
-NMPI_HOST = "https://nmpi.hbpneuromorphic.eu"
-#NMPI_HOST = "http://127.0.0.1:8000"
+NMPI_HOST = "https://nmpi-staging.hbpneuromorphic.eu"
+#NMPI_HOST = "https://127.0.0.1:8000"
 NMPI_API = "/api/v2"
 ENTRYPOINT = NMPI_HOST + NMPI_API
 VERIFY = True
 
 TEST_TOKEN = "boIeArQtaH1Vwibq4AnaZE91diEQASN9ZV1BO-f2tFi7dJkwowIJP6Vhcf4b6uj0HtiyshEheugRek2EDFHiNZHlZtDAVNUTypnN0CnA5yPIPqv6CaMsjuByumMdIenw"
 HARDWARE_TOKEN = "D7oyE7C8-TlwT88Xt9TyiCWwivUkes7lukaomwrfTq01RravZXeDHQhRSwSIvHACHZoJhbrxTqFr5ADe853SDvlVK9JGz8oQMqAaNUE7WH39J16sD5hFs91a0s2SGzuO"
+TEST_COLLAB = 563
 
 simple_test_script = r"""
 from datetime import datetime
@@ -63,7 +64,7 @@ class SlurmTest(unittest.TestCase):
                 AUTH_TOKEN=HARDWARE_TOKEN,
                 NMPI_HOST=NMPI_HOST,
                 NMPI_API=NMPI_API,
-                PLATFORM_NAME="nosetest",
+                PLATFORM_NAME="nosetest_platform",
                 VERIFY_SSL=VERIFY
             ))
         except saga.NoSuccess:
@@ -139,21 +140,21 @@ class QueueServerInteractionTest(unittest.TestCase):
         self.user_client = nmpi_user.Client("testuser", token=TEST_TOKEN,
                                             entrypoint=ENTRYPOINT,
                                             verify=VERIFY)
-        self.collab_id = datetime.now().strftime("test_%Y%m%d_%H%M%S")
+        self.collab_id = TEST_COLLAB
         self.job_runner = nmpi_saga.JobRunner(dict(
             JOB_SERVICE_ADAPTOR="fork://localhost",
             AUTH_USER="nmpi",
             AUTH_TOKEN=HARDWARE_TOKEN,
             NMPI_HOST=NMPI_HOST,
             NMPI_API=NMPI_API,
-            PLATFORM_NAME="nosetest",
+            PLATFORM_NAME="nosetest_platform",
             VERIFY_SSL=VERIFY
         ))
 
     def _submit_test_job(self):
         self.last_job = self.user_client.submit_job(
             source=simple_test_script,
-            platform="nosetest",
+            platform="nosetest_platform",
             collab_id=self.collab_id)
 
     def test__get_next_job(self):
@@ -161,7 +162,7 @@ class QueueServerInteractionTest(unittest.TestCase):
         nmpi_job = self.job_runner.client.get_job(self.last_job)
         self.assertEqual(nmpi_job["status"], "submitted")
         self.assertEqual(nmpi_job["user_id"], "testuser")
-        self.assertEqual(nmpi_job["hardware_platform"], "nosetest")
+        self.assertEqual(nmpi_job["hardware_platform"], "nosetest_platform")
 
     def test__update_status(self):
         self._submit_test_job()
@@ -188,6 +189,7 @@ class QueueServerInteractionTest(unittest.TestCase):
         self._submit_test_job()
         test_job = self.user_client.get_job(self.last_job)
         test_job['status'] = 'finished'
+        test_job['resource_usage'] = 1.23
         self.job_runner.client.update_job(test_job)
         test_job['resource_uri'] = test_job['resource_uri'].replace('queue', 'results')
         jobs = self.user_client.completed_jobs()
@@ -207,15 +209,14 @@ class FullStackTest(unittest.TestCase):
                 AUTH_TOKEN=HARDWARE_TOKEN,
                 NMPI_HOST=NMPI_HOST,
                 NMPI_API=NMPI_API,
-                PLATFORM_NAME="nosetest",
+                PLATFORM_NAME="nosetest_platform",
                 VERIFY_SSL=VERIFY
             ))
         except saga.NoSuccess:
             raise unittest.SkipTest("SLURM not available")
         self.user_client = nmpi_user.Client("testuser", token=TEST_TOKEN,
                                             entrypoint=ENTRYPOINT)
-        self.project_name = datetime.now().strftime("test_%Y%m%d_%H%M%S")
-        self.user_client.create_project(self.project_name, members=['testuser', 'nmpi'])
+        self.collab_id = TEST_COLLAB
 
     def tearDown(self):
         self.job_runner.close()
@@ -223,8 +224,8 @@ class FullStackTest(unittest.TestCase):
     def _submit_test_job(self):
         self.user_client.submit_job(
             source=simple_test_script,
-            platform="nosetest",
-            project=self.project_name)
+            platform="nosetest_platform",
+            collab_id=self.collab_id)
 
     def test_all__no_input_data(self):
         tmpdir = tempfile.mkdtemp(dir=os.path.join(os.path.expanduser("~/"), "tmp"))
@@ -237,7 +238,7 @@ class FullStackTest(unittest.TestCase):
                 AUTH_TOKEN=HARDWARE_TOKEN,
                 NMPI_HOST=NMPI_HOST,
                 NMPI_API=NMPI_API,
-                PLATFORM_NAME="nosetest",
+                PLATFORM_NAME="nosetest_platform",
                 VERIFY_SSL=VERIFY,
                 WORKING_DIRECTORY=tmpdir,
                 JOB_EXECUTABLE='/usr/bin/python',
@@ -275,7 +276,7 @@ class CodeRetrievalTest(unittest.TestCase):
             AUTH_TOKEN=HARDWARE_TOKEN,
             NMPI_HOST=NMPI_HOST,
             NMPI_API=NMPI_API,
-            PLATFORM_NAME="nosetest",
+            PLATFORM_NAME="nosetest_platform",
             VERIFY_SSL=VERIFY
         ))
         job = MockSagaJob("submitted", working_directory=self.tmp_run_dir)
@@ -301,7 +302,7 @@ class CodeRetrievalTest(unittest.TestCase):
             AUTH_TOKEN=HARDWARE_TOKEN,
             NMPI_HOST=NMPI_HOST,
             NMPI_API=NMPI_API,
-            PLATFORM_NAME="nosetest",
+            PLATFORM_NAME="nosetest_platform",
             VERIFY_SSL=VERIFY
         ))
         job = MockSagaJob("submitted", working_directory=self.tmp_run_dir)

@@ -12,14 +12,14 @@ from datetime import datetime
 from nmpi import nmpi_user
 
 
-ENTRYPOINT = "https://nmpi.hbpneuromorphic.eu/api/v2/"
+ENTRYPOINT = "https://nmpi-staging.hbpneuromorphic.eu/api/v2/"
 #ENTRYPOINT = "http://127.0.0.1:8000/api/v2/"
 #ENTRYPOINT = "https://192.168.59.103:32768/api/v2/"
 #ENTRYPOINT = "https://nmpi-tmp-1.apdavison.cont.tutum.io:49157/api/v2/"
 
-#TEST_TOKEN = "boIeArQtaH1Vwibq4AnaZE91diEQASN9ZV1BO-f2tFi7dJkwowIJP6Vhcf4b6uj0HtiyshEheugRek2EDFHiNZHlZtDAVNUTypnN0CnA5yPIPqv6CaMsjuByumMdIenw"
-TEST_TOKEN = "faketoken"
-
+TEST_TOKEN = "boIeArQtaH1Vwibq4AnaZE91diEQASN9ZV1BO-f2tFi7dJkwowIJP6Vhcf4b6uj0HtiyshEheugRek2EDFHiNZHlZtDAVNUTypnN0CnA5yPIPqv6CaMsjuByumMdIenw"
+#TEST_TOKEN = "faketoken"
+TEST_COLLAB = 563
 VERIFY = True
 
 simple_test_script = r"""
@@ -54,7 +54,7 @@ class QueueInteractionTest(unittest.TestCase):
 
     def setUp(self):
         self.user_client = nmpi_user.Client("testuser", entrypoint=ENTRYPOINT, token=TEST_TOKEN, verify=VERIFY)
-        self.collab_id = "nosetest"
+        self.collab_id = TEST_COLLAB
         self.job_id = None
         # print self.user_client.resource_map
 

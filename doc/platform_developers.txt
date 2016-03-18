@@ -61,7 +61,7 @@ and the identifier for your platform:
 
 .. code-block:: python
 
-    # Identifier for your platform (e.g. "NM-PM1")
+    # Identifier for your platform (e.g. "BrainScaleS")
     PLATFORM_NAME=clusteru
 
 together with local directories used for storing the code during execution and for the results:

@@ -16,11 +16,14 @@ try:
 except ImportError:  # Py3
     from urllib.parse import urlparse
     from urllib.request import urlretrieve
-
+import errno
 import requests
 from requests.auth import AuthBase
 
 logger = logging.getLogger("NMPI")
+
+IDENTITY_SERVICE = "https://services.humanbrainproject.eu/idm/v1/api"
+COLLAB_SERVICE = "https://services.humanbrainproject.eu/collab/v0"
 
 
 class NMPAuth(AuthBase):
@@ -36,6 +39,29 @@ class NMPAuth(AuthBase):
         r.headers['Authorization'] = 'ApiKey ' + self.username + ":" + self.token
         return r
 
+
+class HBPAuth(AuthBase):
+    """Attaches OIDC Bearer Authentication to the given Request object."""
+
+    def __init__(self, token):
+        # setup any auth-related data here
+        self.token = token
+
+    def __call__(self, r):
+        # modify and return the request
+        r.headers['Authorization'] = 'Bearer ' + self.token
+        return r
+
+
+def _mkdir_p(path):
+    # not needed in Python >= 3.2, use os.makedirs(path, exist_ok=True)
+    try:
+        os.makedirs(path)
+    except OSError as exc:
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else:
+            raise
 
 
 class Client(object):
@@ -74,7 +100,8 @@ class Client(object):
         # if a token has been given, no need to authenticate
         if not self.token:
             self._hbp_auth(username, password)
-        self.auth = NMPAuth(username, self.token)
+        self.auth = HBPAuth(self.token)
+        self._get_user_info()
         # get schema
         req = requests.get(entrypoint, cert=self.cert, verify=self.verify, auth=self.auth)
         if req.ok:
@@ -87,8 +114,6 @@ class Client(object):
     def _hbp_auth(self, username, password):
         """
         """
-        client_id = r'nmpi'
-        client_secret = r'b8IMyR-dd-qR6k3VAbHRYYAngKySClc9olDr084HpDmr1fjtx6TMHUwjpBnKcZc2uQfIU3BAAJplhoH42BsiyQ'
         redirect_uri = self.server + '/complete/hbp/'
 
         self.session = requests.Session()
@@ -154,6 +179,15 @@ class Client(object):
                 raise Exception("Something went wrong. Status code {} from HBP, expected 302".format(rHBP1.status_code))
         else:
             raise Exception("Something went wrong. Status code {} from NMPI, expected 302".format(rNMPI1.status_code))
+
+    def _get_user_info(self):
+        req = requests.get(IDENTITY_SERVICE + "/user/me",
+                           auth=self.auth)
+        if req.ok:
+            self.user_info = req.json()
+            assert self.user_info['username'] == self.username
+        else:
+            self._handle_error(req)
 
     def _handle_error(self, request):
         """
@@ -222,14 +256,8 @@ class Client(object):
         if not req.ok:
             self._handle_error(req)
 
-    def list_collabs(self, verbose=False):
-        """
-        Retrieve a list of the collabs to which you have access.
-        """
-        return self._query(self.resource_map["collab_id"], verbose=verbose)
-
     def submit_job(self, source, platform, collab_id, config=None, inputs=None,
-                   command="run.py"):
+                   command="run.py {system}"):
         """
         Submit a job to the platform.
 
@@ -247,7 +275,7 @@ class Client(object):
         inputs : a list of URLs for datafiles needed as inputs to the
                  simulation.
         command : (optional) the path to the main Python script relative to
-                  the root of the repository or zip file. Defaults to "run.py".
+                  the root of the repository or zip file. Defaults to "run.py {system}".
         """
         source = os.path.expanduser(source)
         if os.path.exists(source) and os.path.splitext(source)[1] == ".py":
@@ -260,7 +288,7 @@ class Client(object):
             'command': command,
             'hardware_platform': platform,
             'collab_id': collab_id,
-            'user_id': self.username
+            'user_id': self.user_info["id"]
         }
 
         if inputs is not None:
@@ -323,11 +351,11 @@ class Client(object):
         verbose : if False, return just the job URIs,
                   if True, return full details.
         """
-        return self._query(self.resource_map["queue"] + "/submitted/", verbose=verbose)
+        return self._query(self.resource_map["queue"] + "/submitted/?user_id=" + str(self.user_info["id"]), verbose=verbose)
 
-    def completed_jobs(self, verbose=False):
+    def completed_jobs(self, collab_id, verbose=False):
         """
-        Return the list of completed jobs belonging to the current user.
+        Return the list of completed jobs in the given collab.
 
         Arguments
         ---------
@@ -335,10 +363,10 @@ class Client(object):
         verbose : if False, return just the job URIs,
                   if True, return full details.
         """
-        # todo: add kwargs `project_name` to allow filtering of the jobs
-        return self._query(self.resource_map["results"], verbose=verbose)
+        return self._query(self.resource_map["results"] + "?collab_id=" + str(collab_id),
+                           verbose=verbose)
 
-    def download_data_url(self, job, local_dir=".", include_input_data=False):
+    def download_data(self, job, local_dir=".", include_input_data=False):
         """
         Download output data files produced by a given job to a local directory.
 
@@ -353,14 +381,26 @@ class Client(object):
         datalist = job["output_data"]
         if include_input_data:
             datalist.extend(job["input_data"])
-        for dataitem in datalist:
+
+        server_paths = [urlparse(item["url"])[2] for item in datalist]
+        if len(server_paths) > 1:
+            common_prefix = os.path.commonprefix(server_paths)
+            assert common_prefix[-1] == "/"
+        else:
+            common_prefix = os.path.dirname(server_paths[0])
+        relative_paths = [os.path.relpath(p, common_prefix) for p in server_paths]
+
+        for relative_path, dataitem in zip(relative_paths, datalist):
             url = dataitem["url"]
             (scheme, netloc, path, params, query, fragment) = urlparse(url)
             if not scheme:
                 url = "file://" + url
-            local_filename = os.path.join(local_dir, os.path.split(path)[1])
-            urlretrieve(url, local_filename)
-            filenames.append(local_filename)
+            local_path = os.path.join(local_dir, relative_path)
+            dir = os.path.dirname(local_path)
+            _mkdir_p(dir)
+            urlretrieve(url, local_path)
+            filenames.append(local_path)
+
         return filenames
 
     def create_data_item(self, url):
@@ -370,3 +410,21 @@ class Client(object):
         data_item = {"url": url}
         result = self._post(self.resource_map["dataitem"], data_item)
         return result["resource_uri"]
+
+    def my_collabs(self):
+        """
+        Return a list of collabs of which the user is a member.
+
+        """
+        collabs = []
+        next = COLLAB_SERVICE + '/mycollabs'
+        while next:
+            req = requests.get(next, auth=self.auth)
+            if req.ok:
+                data = req.json()
+                next = data["next"]
+                collabs.extend(data["results"])
+            else:
+                self._handle_error(req)
+        return dict((c["title"], c)
+                    for c in collabs if not c["deleted"])

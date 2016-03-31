@@ -4,4 +4,9 @@ try:
 except ImportError:
     pass
 
+SPINNAKER = "SpiNNaker"
+BRAINSCALES = "BrainScaleS"
+ESS = "BrainScaleS-ESS"
+SPIKEY = "Spikey"
+
 __version__ = "0.2.0"

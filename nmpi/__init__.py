@@ -9,4 +9,4 @@ BRAINSCALES = "BrainScaleS"
 ESS = "BrainScaleS-ESS"
 SPIKEY = "Spikey"
 
-__version__ = "0.2.0"
+__version__ = "0.4.1"

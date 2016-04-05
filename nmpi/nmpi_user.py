@@ -80,10 +80,11 @@ def _mkdir_p(path):
 
 class Client(object):
     """
-    Client for interacting with the Neuromorphic Computing Platform of the Human Brain Project.
+    Client for interacting with the Neuromorphic Computing Platform of
+    the Human Brain Project.
 
-    This includes submitting jobs, tracking job status, retrieving the results of completed jobs,
-    and creating and administering projects.
+    This includes submitting jobs, tracking job status and retrieving the
+    results of completed jobs.
 
     Arguments
     ---------
@@ -133,7 +134,7 @@ class Client(object):
         self.session = requests.Session()
         # 1. login button on NMPI
         rNMPI1 = self.session.get(self.server + "/login/hbp/?next=/config.json",
-                                  allow_redirects=False, verify=True)
+                                  allow_redirects=False, verify=self.verify)
         # 2. receives a redirect
         if rNMPI1.status_code == 302:
             # Get its new destination (location)
@@ -148,7 +149,7 @@ class Client(object):
             cookie = rNMPI1.headers.get('set-cookie').split(";")[0]
             self.session.headers.update({'cookie': cookie})
             # 3. request to the provided url at HBP
-            rHBP1 = self.session.get(url, allow_redirects=False, verify=True)
+            rHBP1 = self.session.get(url, allow_redirects=False, verify=self.verify)
             # 4. receives a redirect to HBP login page
             if rHBP1.status_code == 302:
                 # Get its new destination (location)
@@ -156,7 +157,7 @@ class Client(object):
                 cookie = rHBP1.headers.get('set-cookie').split(";")[0]
                 self.session.headers.update({'cookie': cookie})
                 # 5. request to the provided url at HBP
-                rHBP2 = self.session.get(url, allow_redirects=False, verify=True)
+                rHBP2 = self.session.get(url, allow_redirects=False, verify=self.verify)
                 # 6. HBP responds with the auth form
                 if rHBP2.text:
                     # 7. Request to the auth service url
@@ -170,7 +171,7 @@ class Client(object):
                     rNMPI2 = self.session.post("https://services.humanbrainproject.eu/oidc/j_spring_security_check",
                                                data=formdata,
                                                allow_redirects=True,
-                                               verify=True,
+                                               verify=self.verify,
                                                headers=headers)
                     # check good communication
                     if rNMPI2.status_code == requests.codes.ok:
@@ -179,6 +180,7 @@ class Client(object):
                             # print rNMPI2.text
                             res = rNMPI2.json()
                             self.token = res['auth']['token']['access_token']
+                            self.config = res
                         # unauthorized
                         else:
                             if 'error' in rNMPI2.url:
@@ -245,7 +247,10 @@ class Client(object):
                             headers={"content-type": "application/json"})
         if not req.ok:
             self._handle_error(req)
-        return req.json()
+        if 'Location' in req.headers:
+            return req.headers['Location']
+        else:
+            return req.json()
 
     def _put(self, resource_uri, data):
         """
@@ -311,7 +316,7 @@ class Client(object):
             job['hardware_config'] = config
         result = self._post(self.resource_map["queue"], job)
         print("Job submitted")
-        return result["id"]
+        return result
 
     def job_status(self, job_id):
         """

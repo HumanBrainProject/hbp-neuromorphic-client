@@ -32,12 +32,16 @@ import sh
 from sh import git, unzip, tar
 import nmpi
 import codecs
+import requests
+from requests.auth import AuthBase
+
 
 DEFAULT_SCRIPT_NAME = "run.py {system}"
 DEFAULT_PYNN_VERSION = "0.7"
 MAX_LOG_SIZE = 10000
 
 logger = logging.getLogger("NMPI")
+
 
 # status functions
 def job_pending(nmpi_job, saga_job):
@@ -118,6 +122,20 @@ def load_config(fullpath):
     return conf
 
 
+class NMPAuth(AuthBase):
+    """Attaches ApiKey Authentication to the given Request object."""
+
+    def __init__(self, username, token):
+        # setup any auth-related data here
+        self.username = username
+        self.token = token
+
+    def __call__(self, r):
+        # modify and return the request
+        r.headers['Authorization'] = 'ApiKey ' + self.username + ":" + self.token
+        return r
+
+
 class HardwareClient(nmpi.Client):
     """
     Client for interacting from a specific hardware, with the Neuromorphic Computing Platform of the Human Brain Project.
@@ -134,7 +152,21 @@ class HardwareClient(nmpi.Client):
     """
 
     def __init__(self, username, platform, token, entrypoint="https://nmpi.hbpneuromorphic.eu/api/v2/", verify=True):
-        nmpi.Client.__init__(self, username, password=None, entrypoint=entrypoint, token=token, verify=verify)
+        self.username = username
+        self.cert = None
+        self.verify = verify
+        self.token = token
+        (scheme, netloc, path, params, query, fragment) = urlparse(entrypoint)
+        self.server = "%s://%s" % (scheme, netloc)
+        self.auth = NMPAuth(self.username, self.token)
+        # get schema
+        req = requests.get(entrypoint, cert=self.cert, verify=self.verify, auth=self.auth)
+        if req.ok:
+            self._schema = req.json()
+            self.resource_map = {name: entry["list_endpoint"]
+                                 for name, entry in req.json().items()}
+        else:
+            self._handle_error(req)
         self.platform = platform
 
     def get_next_job(self):
@@ -163,6 +195,32 @@ class HardwareClient(nmpi.Client):
         log_response = self._put("/api/v2/log/{}".format(job["id"]),
                                  {"content": "reset status to 'submitted'\n"})
         return self._put(job["resource_uri"], job)
+
+    def queued_jobs(self, verbose=False):
+        """
+        Return the list of submitted jobs for the current platform.
+
+        Arguments
+        ---------
+
+        verbose : if False, return just the job URIs,
+                  if True, return full details.
+        """
+        return self._query(self.resource_map["queue"] + "/submitted/?hardware_platform=" + str(self.platform),
+                           verbose=verbose)
+
+    def running_jobs(self, verbose=False):
+        """
+        Return the list of running jobs for the current platform.
+
+        Arguments
+        ---------
+
+        verbose : if False, return just the job URIs,
+                  if True, return full details.
+        """
+        return self._query(self.resource_map["queue"] + "/running/?hardware_platform=" + str(self.platform),
+                           verbose=verbose)
 
 
 # adapted from Sumatra

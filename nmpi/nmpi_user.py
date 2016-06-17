@@ -40,20 +40,6 @@ IDENTITY_SERVICE = "https://services.humanbrainproject.eu/idm/v1/api"
 COLLAB_SERVICE = "https://services.humanbrainproject.eu/collab/v0"
 
 
-class NMPAuth(AuthBase):
-    """Attaches ApiKey Authentication to the given Request object."""
-
-    def __init__(self, username, token):
-        # setup any auth-related data here
-        self.username = username
-        self.token = token
-
-    def __call__(self, r):
-        # modify and return the request
-        r.headers['Authorization'] = 'ApiKey ' + self.username + ":" + self.token
-        return r
-
-
 class HBPAuth(AuthBase):
     """Attaches OIDC Bearer Authentication to the given Request object."""
 
@@ -184,9 +170,9 @@ class Client(object):
                         # unauthorized
                         else:
                             if 'error' in rNMPI2.url:
-                                raise Exception("Authentication Failure: No token retrieved.")
+                                raise Exception("Authentication Failure: No token retrieved." + rNMPI2.url)
                             else:
-                                raise Exception("Unhandled error in Authentication.")
+                                raise Exception("Unhandled error in Authentication." + rNMPI2.url)
                     else:
                         raise Exception("Communication error")
                 else:
@@ -322,14 +308,22 @@ class Client(object):
         """
         Return the current status of the job with ID `job_id` (integer).
         """
-        return self.get_job(job_id)["status"]
+        logger.debug(type(job_id))
+        logger.debug(str(job_id))
+        return self.get_job(job_id, with_log=False)["status"]
 
     def get_job(self, job_id, with_log=True):
         """
         Return full details of the job with ID `job_id` (integer).
         """
+        # we accept either an integer job id or a resource uri as identifier
+        try:
+            job_id = int(job_id)
+        except ValueError:
+            job_id = int(job_id.split("/")[-1])
         for resource_type in ("queue", "results"):
             job_uri = self._query(self.resource_map[resource_type] + "?id={}".format(job_id))
+            logger.debug(job_uri)
             if job_uri:
                 job = self._query(job_uri[0])
                 assert job["id"] == job_id

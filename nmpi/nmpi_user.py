@@ -416,6 +416,26 @@ class Client(object):
 
         return filenames
 
+    def copy_data_to_storage(self, job_id, destination="collab"):
+        """
+        Copy the data produced by the job with id `job_id` to Collaboratory
+        storage or to the HPAC Platform. Note that copying data to an HPAC
+        site requires that you have an account for that site.
+
+        Example
+        -------
+
+        To copy data to the JURECA machine:
+
+            client.copy_data_to_storage(90712, "JURECA")
+
+        To copy data to Collab storage:
+
+            client.copy_data_to_storage(90712, "collab")
+
+        """
+        return self._query("/copydata/{}/{}".format(destination, job_id))
+
     def create_data_item(self, url):
         """
         Register a data item with the platform.

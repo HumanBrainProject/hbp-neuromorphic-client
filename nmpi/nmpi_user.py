@@ -266,6 +266,8 @@ class Client(object):
         """
         Submit a job to the platform.
 
+        Returns the job id (int).
+
         Arguments:
 
         source : the Python script to be run, the URL of a public version
@@ -302,7 +304,9 @@ class Client(object):
             job['hardware_config'] = config
         result = self._post(self.resource_map["queue"], job)
         print("Job submitted")
-        return result
+        job_id_str = result.split('/')[-1]
+        job_id_int = int(job_id_str)
+        return job_id_int
 
     def job_status(self, job_id):
         """

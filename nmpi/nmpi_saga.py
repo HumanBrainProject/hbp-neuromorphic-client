@@ -277,10 +277,10 @@ class JobRunner(object):
         """
         Get the next job by oldest date in the queue, and run it.
         """
-        logger.debug("Retrieving next job")
+        #logger.debug("Retrieving next job")
         nmpi_job = self.client.get_next_job()
         if nmpi_job is None:
-            logger.debug("No new jobs")
+            #logger.debug("No new jobs")
             return None
         saga_job = self.run(nmpi_job)
         self._update_status(nmpi_job, saga_job, default_job_states)
@@ -307,7 +307,7 @@ class JobRunner(object):
         # Run the job
         self.start_time = datetime.now()
         time.sleep(1)  # ensure output file timestamps are different from start_time
-        logger.info("Running job {}".format(saga_job.id))
+        logger.info("Running job {}".format(nmpi_job['id']))
         saga_job.run()
         # todo: add logger.warning if job fails
         return saga_job
@@ -430,13 +430,19 @@ class JobRunner(object):
                                                      ", ".join(new_files)))
         if self.config["DATA_DIRECTORY"] != self.config["WORKING_DIRECTORY"]:
             if not path.exists(self.config['DATA_DIRECTORY']):
-                os.makedirs(self.config['DATA_DIRECTORY'])
+                try:
+                    os.makedirs(self.config['DATA_DIRECTORY'])
+                except Exception as err:
+                    logging.error(err.message)
             for new_file in new_files:
-                new_file_path = path.join(output_dir, new_file)
-                if not os.path.exists(os.path.dirname(new_file_path)):
-                    os.makedirs(os.path.dirname(new_file_path))
-                shutil.copyfile(path.join(job_desc.working_directory, new_file),
-                                new_file_path)
+                try:
+                    new_file_path = path.join(output_dir, new_file)
+                    if not os.path.exists(os.path.dirname(new_file_path)):
+                        os.makedirs(os.path.dirname(new_file_path))
+                    shutil.copyfile(path.join(job_desc.working_directory, new_file),
+                                    new_file_path)
+                except Exception as err:
+                    logging.error(err.message)
         # append the new output to the list of item data and retrieve it
         # by POSTing to the DataItem list resource
         logger.info("Posting data items")

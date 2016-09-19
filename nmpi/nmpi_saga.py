@@ -277,10 +277,10 @@ class JobRunner(object):
         """
         Get the next job by oldest date in the queue, and run it.
         """
-        logger.info("Retrieving next job")
+        logger.debug("Retrieving next job")
         nmpi_job = self.client.get_next_job()
         if nmpi_job is None:
-            logger.info("No new jobs")
+            logger.debug("No new jobs")
             return None
         saga_job = self.run(nmpi_job)
         self._update_status(nmpi_job, saga_job, default_job_states)
@@ -307,7 +307,7 @@ class JobRunner(object):
         # Run the job
         self.start_time = datetime.now()
         time.sleep(1)  # ensure output file timestamps are different from start_time
-        logger.debug("Running job {}".format(saga_job.id))
+        logger.info("Running job {}".format(saga_job.id))
         saga_job.run()
         return saga_job
 
@@ -355,14 +355,14 @@ class JobRunner(object):
         # job_desc.threads_per_process
         # job_desc.wall_time_limit = 1
         # job_desc.total_physical_memory
-        logger.debug(job_desc.arguments)
+        logger.info(command_line)
         return job_desc
 
     def _create_working_directory(self, workdir):
         if not path.exists(workdir):
             logger.debug("Creating directory %s" % workdir)
             os.makedirs(workdir)
-            logger.info("Created directory %s" % workdir)
+            logger.debug("Created directory %s" % workdir)
         else:
             logger.debug("Directory %s already exists" % workdir)
 
@@ -381,7 +381,7 @@ class JobRunner(object):
             self._create_working_directory(job_desc.working_directory)
             target = os.path.join(job_desc.working_directory, os.path.basename(url_candidate.path))
             urlretrieve(nmpi_job['code'], target)
-            logger.debug("Retrieved file from {} to local target {}".format(nmpi_job['code'], target))
+            logger.info("Retrieved file from {} to local target {}".format(nmpi_job['code'], target))
             if url_candidate.path.endswith((".tar.gz", ".tgz")):
                 tar("xzf", target, directory=job_desc.working_directory)
             elif url_candidate.path.endswith(".zip"):
@@ -391,10 +391,10 @@ class JobRunner(object):
                 # Check the "code" field for a git url (clone it into the workdir) or a script (create a file into the workdir)
                 # URL: use git clone
                 git.clone('--recursive', nmpi_job['code'], job_desc.working_directory)
-                logger.debug("Cloned repository {}".format(nmpi_job['code']))
+                logger.info("Cloned repository {}".format(nmpi_job['code']))
             except (sh.ErrorReturnCode_128, sh.ErrorReturnCode):
                 # SCRIPT: create file (in the current directory)
-                logger.debug("The code field appears to be a script.")
+                logger.info("The code field appears to be a script.")
                 self._create_working_directory(job_desc.working_directory)
                 with codecs.open(job_desc.arguments[0], 'w', encoding='utf8') as job_main_script:
                     job_main_script.write(nmpi_job['code'])
@@ -438,7 +438,7 @@ class JobRunner(object):
                                 new_file_path)
         # append the new output to the list of item data and retrieve it
         # by POSTing to the DataItem list resource
-        logger.debug("Posting data items")
+        logger.info("Posting data items")
         for new_file in new_files:
             url = "{}/{}/{}".format(self.config["DATA_SERVER"], os.path.basename(job_desc.working_directory), new_file)
             resource_uri = self.client.create_data_item(url)

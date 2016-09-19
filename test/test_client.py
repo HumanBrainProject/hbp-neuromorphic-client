@@ -17,7 +17,8 @@ ENTRYPOINT = "https://nmpi-staging.hbpneuromorphic.eu/api/v2/"
 #ENTRYPOINT = "https://192.168.59.103:32768/api/v2/"
 #ENTRYPOINT = "https://nmpi-tmp-1.apdavison.cont.tutum.io:49157/api/v2/"
 
-TEST_TOKEN = "boIeArQtaH1Vwibq4AnaZE91diEQASN9ZV1BO-f2tFi7dJkwowIJP6Vhcf4b6uj0HtiyshEheugRek2EDFHiNZHlZtDAVNUTypnN0CnA5yPIPqv6CaMsjuByumMdIenw"
+TEST_USER = os.environ['NMPI_TEST_USER']
+TEST_TOKEN = os.environ['NMPI_TEST_TOKEN']
 #TEST_TOKEN = "faketoken"
 TEST_COLLAB = 563
 VERIFY = True

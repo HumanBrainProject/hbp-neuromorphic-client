@@ -408,7 +408,7 @@ class Client(object):
             (scheme, netloc, path, params, query, fragment) = urlparse(url)
             if not scheme:
                 url = "file://" + url
-            local_path = os.path.join(local_dir, relative_path)
+            local_path = os.path.join(local_dir, "job_{}".format(job["id"]), relative_path)
             dir = os.path.dirname(local_path)
             _mkdir_p(dir)
             urlretrieve(url, local_path)
@@ -442,7 +442,7 @@ class Client(object):
         """
         data_item = {"url": url}
         result = self._post(self.resource_map["dataitem"], data_item)
-        return result["resource_uri"]
+        return result
 
     def my_collabs(self):
         """

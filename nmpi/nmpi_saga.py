@@ -309,6 +309,7 @@ class JobRunner(object):
         time.sleep(1)  # ensure output file timestamps are different from start_time
         logger.info("Running job {}".format(saga_job.id))
         saga_job.run()
+        # todo: add logger.warning if job fails
         return saga_job
 
     def close(self):

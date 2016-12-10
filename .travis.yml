@@ -1,0 +1,11 @@
+language: python
+python:
+  - 2.7
+  - 3.5
+install:
+  - pip install -r requirements.txt
+  - pip install coverage coveralls
+  - pip install .
+script: nosetests --with-coverage --cover-package=nmpi --cover-erase test/test_mock.py
+after_success:
+  - coveralls

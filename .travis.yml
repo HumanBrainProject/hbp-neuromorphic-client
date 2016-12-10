@@ -3,9 +3,9 @@ python:
   - 2.7
   - 3.5
 install:
-  - pip install -r requirements.txt
-  - pip install coverage coveralls
+  - pip install requests
+  - pip install nose coverage
   - pip install .
-script: nosetests --with-coverage --cover-package=nmpi --cover-erase test/test_mock.py
-after_success:
-  - coveralls
+script:
+  - cd test
+  - nosetests --with-coverage --cover-package=nmpi --cover-erase test_mock.py

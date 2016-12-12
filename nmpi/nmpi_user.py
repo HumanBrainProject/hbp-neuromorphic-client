@@ -395,24 +395,25 @@ class Client(object):
         if include_input_data:
             datalist.extend(job["input_data"])
 
-        server_paths = [urlparse(item["url"])[2] for item in datalist]
-        if len(server_paths) > 1:
-            common_prefix = os.path.commonprefix(server_paths)
-            assert common_prefix[-1] == "/"
-        else:
-            common_prefix = os.path.dirname(server_paths[0])
-        relative_paths = [os.path.relpath(p, common_prefix) for p in server_paths]
+        if datalist:
+            server_paths = [urlparse(item["url"])[2] for item in datalist]
+            if len(server_paths) > 1:
+                common_prefix = os.path.commonprefix(server_paths)
+                assert common_prefix[-1] == "/"
+            else:
+                common_prefix = os.path.dirname(server_paths[0])
+            relative_paths = [os.path.relpath(p, common_prefix) for p in server_paths]
 
-        for relative_path, dataitem in zip(relative_paths, datalist):
-            url = dataitem["url"]
-            (scheme, netloc, path, params, query, fragment) = urlparse(url)
-            if not scheme:
-                url = "file://" + url
-            local_path = os.path.join(local_dir, "job_{}".format(job["id"]), relative_path)
-            dir = os.path.dirname(local_path)
-            _mkdir_p(dir)
-            urlretrieve(url, local_path)
-            filenames.append(local_path)
+            for relative_path, dataitem in zip(relative_paths, datalist):
+                url = dataitem["url"]
+                (scheme, netloc, path, params, query, fragment) = urlparse(url)
+                if not scheme:
+                    url = "file://" + url
+                local_path = os.path.join(local_dir, "job_{}".format(job["id"]), relative_path)
+                dir = os.path.dirname(local_path)
+                _mkdir_p(dir)
+                urlretrieve(url, local_path)
+                filenames.append(local_path)
 
         return filenames
 

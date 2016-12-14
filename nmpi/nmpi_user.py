@@ -201,6 +201,8 @@ class Client(object):
             errmsg = request.json()["error"]
         except ValueError:
             errmsg = request.content
+        if isinstance(errmsg, bytes):
+            errmsg = errmsg.decode('utf-8')
         logger.error(errmsg)
         raise Exception("Error %s: %s" % (request.status_code, errmsg))
 

@@ -344,7 +344,12 @@ class Client(object):
 
         The job is hidden rather than being permanently deleted.
         """
-        self._delete("{}/{}".format(self.resource_map["results"], job_id))
+        try:
+            job_id = int(job_id)
+            job_uri = "{}/{}".format(self.resource_map["results"], job_id)
+        except ValueError:
+            job_uri = job_id
+        self._delete(job_uri)
 
     def remove_queued_job(self, job_id):
         """
@@ -352,7 +357,12 @@ class Client(object):
 
         The job is hidden rather than being permanently deleted.
         """
-        self._delete("{}/{}".format(self.resource_map["queue"], job_id))
+        try:
+            job_id = int(job_id)
+            job_uri = "{}/{}".format(self.resource_map["queue"], job_id)
+        except ValueError:
+            job_uri = job_id
+        self._delete(job_uri)
 
     def queued_jobs(self, verbose=False):
         """

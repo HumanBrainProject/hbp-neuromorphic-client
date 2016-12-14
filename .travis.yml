@@ -8,4 +8,4 @@ install:
   - pip install .
 script:
   - cd test
-  - nosetests --with-coverage --cover-package=nmpi --cover-erase test_mock.py
+  - nosetests --with-coverage --cover-package=nmpi --cover-erase test_mock.py test_client.py

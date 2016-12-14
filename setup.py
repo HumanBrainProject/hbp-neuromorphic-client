@@ -3,7 +3,7 @@
 
 from distutils.core import setup
 
-long_description = open("README.txt").read()
+long_description = open("README.md").read()
 
 setup(
     name="hbp_neuromorphic_platform",

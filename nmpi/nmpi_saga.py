@@ -196,6 +196,23 @@ class HardwareClient(nmpi.Client):
                                  {"content": "reset status to 'submitted'\n"})
         return self._put(job["resource_uri"], job)
 
+    def kill_job(self, job):
+        """
+        Set the status of a queued or running job to "error".
+
+        This should be used circumspectly. It is usually better to use
+        `reset_job()`.
+        """
+        if job["status"] not in ("running", "submitted"):
+            raise Exception("You cannot kill a job with status {}".format(job["status"]))
+        job["status"] = "error"
+        log = job.pop("log", "")
+        response = self._put(job["resource_uri"], job)
+        log += "Internal error. Please resubmit the job\n"
+        log_response = self._put("/api/v2/log/{}".format(job["id"]),
+                                 {"content": log})
+        return response
+
     def queued_jobs(self, verbose=False):
         """
         Return the list of submitted jobs for the current platform.

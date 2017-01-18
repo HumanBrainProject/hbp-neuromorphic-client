@@ -274,7 +274,7 @@ class Client(object):
                  control repository containing Python code, or a zip file
                  containing Python code.
         platform : the neuromorphic hardware system to be used.
-                   Either "hbp-pm-1" or "hbp-mc-1"
+                   Either "BrainScaleS" or "SpiNNaker"
         collab_id : the ID of the collab to which the job belongs
         config : (optional) a dictionary containing configuration information
                  for the hardware platform. See the Platform Guidebook for

@@ -126,13 +126,13 @@ def tearDown():
 class UserClientTest(unittest.TestCase):
 
     def setUp(self):
-        self.client = nmpi_user.Client("testuser", entrypoint=ENTRYPOINT, token="TOKEN", verify=True)
+        self.client = nmpi_user.Client("testuser", job_service=ENTRYPOINT, token="TOKEN", verify=True)
 
     def test_create_client(self):
         self.assertEqual(self.client.username, "testuser")
         self.assertEqual(self.client.verify, True)
         self.assertEqual(self.client.token, "TOKEN")
-        self.assertEqual(self.client.server, "https://mock.hbpneuromorphic.eu")
+        self.assertEqual(self.client.job_server, "https://mock.hbpneuromorphic.eu")
         self.assertEqual(self.client.auth.token, nmpi_user.HBPAuth("TOKEN").token)
         self.assertEqual(self.client.user_info["username"],
                          "testuser")

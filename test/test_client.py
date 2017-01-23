@@ -52,9 +52,9 @@ sim.end()
 
 def setUp():
     global member_client, nonmember_client, system_client
-    member_client = nmpi_user.Client(TEST_USER, entrypoint=ENTRYPOINT,
+    member_client = nmpi_user.Client(TEST_USER, job_service=ENTRYPOINT,
                                      password=TEST_PWD, verify=VERIFY)
-    nonmember_client = nmpi_user.Client(TEST_USER_NONMEMBER, entrypoint=ENTRYPOINT,
+    nonmember_client = nmpi_user.Client(TEST_USER_NONMEMBER, job_service=ENTRYPOINT,
                                         password=TEST_PWD_NONMEMBER, verify=VERIFY)
 
 

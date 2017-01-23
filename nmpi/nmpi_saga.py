@@ -151,16 +151,18 @@ class HardwareClient(nmpi.Client):
 
     """
 
-    def __init__(self, username, platform, token, entrypoint="https://nmpi.hbpneuromorphic.eu/api/v2/", verify=True):
+    def __init__(self, username, platform, token,
+                 job_service="https://nmpi.hbpneuromorphic.eu/api/v2/",
+                 verify=True):
         self.username = username
         self.cert = None
         self.verify = verify
         self.token = token
-        (scheme, netloc, path, params, query, fragment) = urlparse(entrypoint)
-        self.server = "%s://%s" % (scheme, netloc)
+        (scheme, netloc, path, params, query, fragment) = urlparse(job_service)
+        self.job_server = "%s://%s" % (scheme, netloc)
         self.auth = NMPAuth(self.username, self.token)
         # get schema
-        req = requests.get(entrypoint, cert=self.cert, verify=self.verify, auth=self.auth)
+        req = requests.get(job_service, cert=self.cert, verify=self.verify, auth=self.auth)
         if req.ok:
             self._schema = req.json()
             self.resource_map = {name: entry["list_endpoint"]
@@ -173,16 +175,16 @@ class HardwareClient(nmpi.Client):
         """
         Get the next job by oldest date in the queue.
         """
-        job_nmpi = self._query(self.resource_map["queue"] + "/submitted/next/" + self.platform + "/")
+        job_nmpi = self._query(self.job_server + self.resource_map["queue"] + "/submitted/next/" + self.platform + "/")
         if 'warning' in job_nmpi:
             job_nmpi = None
         return job_nmpi
 
     def update_job(self, job):
         log = job.pop("log", None)
-        response = self._put(job["resource_uri"], job)
+        response = self._put(self.job_server + job["resource_uri"], job)
         if log:
-            log_response = self._put("/api/v2/log/{}".format(job["id"]),
+            log_response = self._put(self.job_server + "/api/v2/log/{}".format(job["id"]),
                                      {"content": log})
         return response
 
@@ -192,9 +194,9 @@ class HardwareClient(nmpi.Client):
         reset its status to "submitted".
         """
         job["status"] = "submitted"
-        log_response = self._put("/api/v2/log/{}".format(job["id"]),
+        log_response = self._put(self.job_server + "/api/v2/log/{}".format(job["id"]),
                                  {"content": "reset status to 'submitted'\n"})
-        return self._put(job["resource_uri"], job)
+        return self._put(self.job_server + job["resource_uri"], job)
 
     def kill_job(self, job):
         """
@@ -207,9 +209,9 @@ class HardwareClient(nmpi.Client):
             raise Exception("You cannot kill a job with status {}".format(job["status"]))
         job["status"] = "error"
         log = job.pop("log", "")
-        response = self._put(job["resource_uri"], job)
+        response = self._put(self.job_server + job["resource_uri"], job)
         log += "Internal error. Please resubmit the job\n"
-        log_response = self._put("/api/v2/log/{}".format(job["id"]),
+        log_response = self._put(self.job_server + "/api/v2/log/{}".format(job["id"]),
                                  {"content": log})
         return response
 
@@ -223,7 +225,7 @@ class HardwareClient(nmpi.Client):
         verbose : if False, return just the job URIs,
                   if True, return full details.
         """
-        return self._query(self.resource_map["queue"] + "/submitted/?hardware_platform=" + str(self.platform),
+        return self._query(self.job_server + self.resource_map["queue"] + "/submitted/?hardware_platform=" + str(self.platform),
                            verbose=verbose)
 
     def running_jobs(self, verbose=False):
@@ -236,7 +238,7 @@ class HardwareClient(nmpi.Client):
         verbose : if False, return just the job URIs,
                   if True, return full details.
         """
-        return self._query(self.resource_map["queue"] + "/running/?hardware_platform=" + str(self.platform),
+        return self._query(self.job_server + self.resource_map["queue"] + "/running/?hardware_platform=" + str(self.platform),
                            verbose=verbose)
 
 
@@ -286,7 +288,7 @@ class JobRunner(object):
         self.service = saga.job.Service(config['JOB_SERVICE_ADAPTOR'])
         self.client = HardwareClient(username=config['AUTH_USER'],
                                      token=config['AUTH_TOKEN'],
-                                     entrypoint=config['NMPI_HOST'] + config['NMPI_API'],
+                                     job_service=config['NMPI_HOST'] + config['NMPI_API'],
                                      platform=config['PLATFORM_NAME'],
                                      verify=config['VERIFY_SSL'])
 

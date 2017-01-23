@@ -24,6 +24,7 @@ import os.path
 import json
 import getpass
 import logging
+import uuid
 try:
     from urlparse import urlparse
     from urllib import urlretrieve
@@ -76,8 +77,10 @@ class Client(object):
     ---------
 
     username, password : credentials for accessing the platform
-    entrypoint : the base URL of the platform. Generally the default value
-                 should be used.
+    job_service : the base URL of the platform Job Service.
+                  Generally the default value should be used.
+    quotas_service : the base URL of the platform Quotas Service.
+                     Generally the default value should be used.
     token : when you authenticate with username and password, you will receive
             a token which can be used in place of the password until it expires.
     verify : in case of problems with SSL certificate verification, you can
@@ -86,7 +89,8 @@ class Client(object):
 
     def __init__(self, username,
                  password=None,
-                 entrypoint="https://nmpi.hbpneuromorphic.eu/api/v2/",
+                 job_service="https://nmpi.hbpneuromorphic.eu/api/v2/",
+                 quotas_service="https://quotas.hbpneuromorphic.eu",
                  token=None,
                  verify=True):
         if password is None and token is None:
@@ -96,15 +100,16 @@ class Client(object):
         self.cert = None
         self.verify = verify
         self.token = token
-        (scheme, netloc, path, params, query, fragment) = urlparse(entrypoint)
-        self.server = "%s://%s" % (scheme, netloc)
+        (scheme, netloc, path, params, query, fragment) = urlparse(job_service)
+        self.job_server = "%s://%s" % (scheme, netloc)
+        self.quotas_server = quotas_service
         # if a token has been given, no need to authenticate
         if not self.token:
             self._hbp_auth(username, password)
         self.auth = HBPAuth(self.token)
         self._get_user_info()
         # get schema
-        req = requests.get(entrypoint, cert=self.cert, verify=self.verify, auth=self.auth)
+        req = requests.get(job_service, cert=self.cert, verify=self.verify, auth=self.auth)
         if req.ok:
             self._schema = req.json()
             self.resource_map = {name: entry["list_endpoint"]
@@ -115,11 +120,11 @@ class Client(object):
     def _hbp_auth(self, username, password):
         """
         """
-        redirect_uri = self.server + '/complete/hbp/'
+        redirect_uri = self.job_server + '/complete/hbp/'
 
         self.session = requests.Session()
         # 1. login button on NMPI
-        rNMPI1 = self.session.get(self.server + "/login/hbp/?next=/config.json",
+        rNMPI1 = self.session.get(self.job_server + "/login/hbp/?next=/config.json",
                                   allow_redirects=False, verify=self.verify)
         # 2. receives a redirect
         if rNMPI1.status_code == 302:
@@ -162,7 +167,7 @@ class Client(object):
                     # check good communication
                     if rNMPI2.status_code == requests.codes.ok:
                         # check success address
-                        if rNMPI2.url == self.server + '/config.json':
+                        if rNMPI2.url == self.job_server + '/config.json':
                             # print rNMPI2.text
                             res = rNMPI2.json()
                             self.token = res['auth']['token']['access_token']
@@ -210,7 +215,7 @@ class Client(object):
         """
         Retrieve a resource or list of resources.
         """
-        req = requests.get(self.server + resource_uri, auth=self.auth,
+        req = requests.get(resource_uri, auth=self.auth,
                            cert=self.cert, verify=self.verify)
         if req.ok:
             if "objects" in req.json():
@@ -228,7 +233,7 @@ class Client(object):
         """
         Create a new resource.
         """
-        req = requests.post(self.server + resource_uri,
+        req = requests.post(resource_uri,
                             data=json.dumps(data),
                             auth=self.auth,
                             cert=self.cert, verify=self.verify,
@@ -244,7 +249,7 @@ class Client(object):
         """
         Updates a resource.
         """
-        req = requests.put(self.server + resource_uri,
+        req = requests.put(resource_uri,
                            data=json.dumps(data),
                            auth=self.auth,
                            cert=self.cert, verify=self.verify,
@@ -257,7 +262,7 @@ class Client(object):
         """
         Deletes a resource
         """
-        req = requests.delete(self.server + resource_uri,
+        req = requests.delete(resource_uri,
                               auth=self.auth,
                               cert=self.cert, verify=self.verify)
         if not req.ok:
@@ -302,7 +307,7 @@ class Client(object):
             job['input_data'] = [self.create_data_item(input) for input in inputs]
         if config is not None:
             job['hardware_config'] = config
-        result = self._post(self.resource_map["queue"], job)
+        result = self._post(self.job_server + self.resource_map["queue"], job)
         print("Job submitted")
         return result
 
@@ -324,14 +329,14 @@ class Client(object):
         except ValueError:
             job_id = int(job_id.split("/")[-1])
         for resource_type in ("queue", "results"):
-            job_uri = self._query(self.resource_map[resource_type] + "?id={}".format(job_id))
+            job_uri = self._query(self.job_server + self.resource_map[resource_type] + "?id={}".format(job_id))
             logger.debug(job_uri)
             if job_uri:
-                job = self._query(job_uri[0])
+                job = self._query(self.job_server + job_uri[0])
                 assert job["id"] == job_id
                 if with_log:
                     try:
-                        log = self._query(self.resource_map['log'] + "/{}/".format(job_id))
+                        log = self._query(self.job_server + self.resource_map['log'] + "/{}/".format(job_id))
                     except Exception:
                         job["log"] = ''
                     else:
@@ -351,7 +356,7 @@ class Client(object):
             job_uri = "{}/{}".format(self.resource_map["results"], job_id)
         except ValueError:
             job_uri = job_id
-        self._delete(job_uri)
+        self._delete(self.job_server + job_uri)
 
     def remove_queued_job(self, job_id):
         """
@@ -364,7 +369,7 @@ class Client(object):
             job_uri = "{}/{}".format(self.resource_map["queue"], job_id)
         except ValueError:
             job_uri = job_id
-        self._delete(job_uri)
+        self._delete(self.job_server + job_uri)
 
     def queued_jobs(self, verbose=False):
         """
@@ -376,7 +381,7 @@ class Client(object):
         verbose : if False, return just the job URIs,
                   if True, return full details.
         """
-        return self._query(self.resource_map["queue"] + "/submitted/?user_id=" + str(self.user_info["id"]), verbose=verbose)
+        return self._query(self.job_server + self.resource_map["queue"] + "/submitted/?user_id=" + str(self.user_info["id"]), verbose=verbose)
 
     def completed_jobs(self, collab_id, verbose=False):
         """
@@ -388,7 +393,7 @@ class Client(object):
         verbose : if False, return just the job URIs,
                   if True, return full details.
         """
-        return self._query(self.resource_map["results"] + "?collab_id=" + str(collab_id),
+        return self._query(self.job_server + self.resource_map["results"] + "?collab_id=" + str(collab_id),
                            verbose=verbose)
 
     def download_data(self, job, local_dir=".", include_input_data=False):
@@ -447,14 +452,14 @@ class Client(object):
             client.copy_data_to_storage(90712, "collab")
 
         """
-        return self._query("/copydata/{}/{}".format(destination, job_id))
+        return self._query(self.job_server + "/copydata/{}/{}".format(destination, job_id))
 
     def create_data_item(self, url):
         """
         Register a data item with the platform.
         """
         data_item = {"url": url}
-        result = self._post(self.resource_map["dataitem"], data_item)
+        result = self._post(self.job_server + self.resource_map["dataitem"], data_item)
         return result
 
     def my_collabs(self):
@@ -474,3 +479,48 @@ class Client(object):
                 self._handle_error(req)
         return dict((c["title"], c)
                     for c in collabs if not c["deleted"])
+
+    def create_resource_request(self, title, collab_id, abstract, description=None, submit=False):
+        """
+        Create a new resource request. By default, it will not be submitted.
+        """
+
+        context = str(uuid.uuid4())
+
+        # create a new nav item in the Collab
+        nav_resource = COLLAB_SERVICE + "/collab/{}/nav/".format(collab_id)
+        nav_root = self._query(nav_resource + "root")['id']
+        nav_item = {
+            "app_id": "206",
+            "context": context,
+            "name": "Resource request",
+            "order_index": "-1",
+            "parent": nav_root,
+            "type": "IT"
+        }
+        result = self._post(nav_resource, nav_item)
+
+        # create the resource request
+        new_project = {
+            'context': context,
+            'collab': collab_id,
+            'owner': self.user_info['id'],
+            'title': title,
+            'abstract': abstract,
+            'description': description or ''
+        }
+        if submit:
+            new_project["submitted"] = True
+        result = self._post(self.quotas_server + "/projects/",
+                            new_project)
+        if submit:
+            print("Resource request {} submitted.".format(result["context"]))
+        else:
+            print("Resource request {} created. Use `edit_resource_request()` to edit and submit".format(result["context"]))
+        return result["resource_uri"]
+
+    def edit_resource_request(self, request_id, title=None, abstract=None, description=None, submit=False):
+        """
+        Edit an unsubmitted resource request
+        """
+        raise NotImplementedError()

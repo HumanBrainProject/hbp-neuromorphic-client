@@ -27,9 +27,9 @@ import logging
 import uuid
 try:
     from urlparse import urlparse
-    from urllib import urlretrieve
+    from urllib import urlretrieve, urlencode
 except ImportError:  # Py3
-    from urllib.parse import urlparse
+    from urllib.parse import urlparse, urlencode
     from urllib.request import urlretrieve
 import errno
 import requests
@@ -73,18 +73,16 @@ class Client(object):
     This includes submitting jobs, tracking job status and retrieving the
     results of completed jobs.
 
-    Arguments
-    ---------
-
-    username, password : credentials for accessing the platform
-    job_service : the base URL of the platform Job Service.
-                  Generally the default value should be used.
-    quotas_service : the base URL of the platform Quotas Service.
-                     Generally the default value should be used.
-    token : when you authenticate with username and password, you will receive
+    *Arguments*:
+        :username, password: credentials for accessing the platform
+        :job_service: the base URL of the platform Job Service.
+            Generally the default value should be used.
+        :quotas_service: the base URL of the platform Quotas Service.
+            Generally the default value should be used.
+        :token: when you authenticate with username and password, you will receive
             a token which can be used in place of the password until it expires.
-    verify : in case of problems with SSL certificate verification, you can
-             set this to False, but this is not recommended.
+        :verify: in case of problems with SSL certificate verification, you can
+            set this to False, but this is not recommended.
     """
 
     def __init__(self, username,
@@ -273,21 +271,20 @@ class Client(object):
         """
         Submit a job to the platform.
 
-        Arguments:
-
-        source : the Python script to be run, the URL of a public version
-                 control repository containing Python code, or a zip file
-                 containing Python code.
-        platform : the neuromorphic hardware system to be used.
-                   Either "BrainScaleS" or "SpiNNaker"
-        collab_id : the ID of the collab to which the job belongs
-        config : (optional) a dictionary containing configuration information
-                 for the hardware platform. See the Platform Guidebook for
-                 more details.
-        inputs : a list of URLs for datafiles needed as inputs to the
-                 simulation.
-        command : (optional) the path to the main Python script relative to
-                  the root of the repository or zip file. Defaults to "run.py {system}".
+        *Arguments*:
+            :source: the Python script to be run, the URL of a public version
+                control repository containing Python code, or a zip file
+                containing Python code.
+            :platform: the neuromorphic hardware system to be used.
+                Either "BrainScaleS" or "SpiNNaker"
+            :collab_id: the ID of the collab to which the job belongs
+            :config: (optional) a dictionary containing configuration information
+                for the hardware platform. See the Platform Guidebook for
+                more details.
+            :inputs: a list of URLs for datafiles needed as inputs to the
+                simulation.
+            :command: (optional) the path to the main Python script relative to
+                the root of the repository or zip file. Defaults to "run.py {system}".
         """
         source = os.path.expanduser(source)
         if os.path.exists(source) and os.path.splitext(source)[1] == ".py":
@@ -313,7 +310,7 @@ class Client(object):
 
     def job_status(self, job_id):
         """
-        Return the current status of the job with ID `job_id` (integer).
+        Return the current status of the job with ID `job_id` (integer or URI).
         """
         logger.debug(type(job_id))
         logger.debug(str(job_id))
@@ -321,7 +318,7 @@ class Client(object):
 
     def get_job(self, job_id, with_log=True):
         """
-        Return full details of the job with ID `job_id` (integer).
+        Return full details of the job with ID `job_id` (integer or URI).
         """
         # we accept either an integer job id or a resource uri as identifier
         try:
@@ -375,11 +372,9 @@ class Client(object):
         """
         Return the list of jobs belonging to the current user in the queue.
 
-        Arguments
-        ---------
-
-        verbose : if False, return just the job URIs,
-                  if True, return full details.
+        *Arguments*:
+            :verbose: if False, return just the job URIs,
+                      if True, return full details.
         """
         return self._query(self.job_server + self.resource_map["queue"] + "/submitted/?user_id=" + str(self.user_info["id"]), verbose=verbose)
 
@@ -387,11 +382,9 @@ class Client(object):
         """
         Return the list of completed jobs in the given collab.
 
-        Arguments
-        ---------
-
-        verbose : if False, return just the job URIs,
-                  if True, return full details.
+        *Arguments*:
+            :verbose: if False, return just the job URIs,
+                      if True, return full details.
         """
         return self._query(self.job_server + self.resource_map["results"] + "?collab_id=" + str(collab_id),
                            verbose=verbose)
@@ -400,12 +393,10 @@ class Client(object):
         """
         Download output data files produced by a given job to a local directory.
 
-        Arguments
-        ---------
-
-        job : a full job description (dict), as returned by `get_job()`.
-        local_dir : path to a directory into which files shall be saved.
-        include_input_data : also download input data files.
+        *Arguments*:
+            :job: a full job description (dict), as returned by `get_job()`.
+            :local_dir: path to a directory into which files shall be saved.
+            :include_input_data: also download input data files.
         """
         filenames = []
         datalist = job["output_data"]
@@ -440,14 +431,13 @@ class Client(object):
         storage or to the HPAC Platform. Note that copying data to an HPAC
         site requires that you have an account for that site.
 
-        Example
-        -------
+        *Example*:
 
-        To copy data to the JURECA machine:
+        To copy data to the JURECA machine::
 
             client.copy_data_to_storage(90712, "JURECA")
 
-        To copy data to Collab storage:
+        To copy data to Collab storage::
 
             client.copy_data_to_storage(90712, "collab")
 
@@ -465,7 +455,6 @@ class Client(object):
     def my_collabs(self):
         """
         Return a list of collabs of which the user is a member.
-
         """
         collabs = []
         next = COLLAB_SERVICE + '/mycollabs'
@@ -521,6 +510,40 @@ class Client(object):
 
     def edit_resource_request(self, request_id, title=None, abstract=None, description=None, submit=False):
         """
-        Edit an unsubmitted resource request
+        Edit and/or submit an unsubmitted resource request
         """
-        raise NotImplementedError()
+        # todo: support using a URI as the request_id
+        resource_uri = self.quotas_server + "/projects/" + request_id
+        data = {"submitted": submit}
+        if title:  # title cannot be blank
+            data["title"] = title
+        if abstract is not None:
+            data["abstract"] = abstract
+        if description is not None:
+            data["description"] = description
+        result = self._put(resource_uri, data)
+        return data
+
+    def list_resource_requests(self, collab_id, status=None):
+        """
+        Return a list of resource requests for the Neuromorphic Platform
+        """
+        url = self.quotas_server + "/projects/"
+        filters = {}
+        if collab_id is not None:
+            filters["collab"] = collab_id
+        if status is not None:
+            filters["status"] = status
+        if filters:
+            url += "?" + urlencode(filters)
+        return self._query(url)
+
+    def list_quotas(self, collab_id):
+        """
+        Return a list of quotas for running jobs on the Neuromorphic Platform
+        """
+        resource_requests = self.list_resource_requests(collab_id, status="accepted")
+        quotas = []
+        for rr in resource_requests:
+            quotas.append(self._query(self.quotas_server + rr["resource_uri"] + "/quotas/"))
+        return quotas

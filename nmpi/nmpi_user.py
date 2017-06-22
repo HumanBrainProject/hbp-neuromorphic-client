@@ -325,22 +325,34 @@ class Client(object):
             job_id = int(job_id)
         except ValueError:
             job_id = int(job_id.split("/")[-1])
-        for resource_type in ("queue", "results"):
-            job_uri = self._query(self.job_server + self.resource_map[resource_type] + "?id={}".format(job_id))
-            logger.debug(job_uri)
-            if job_uri:
-                job = self._query(self.job_server + job_uri[0])
-                assert job["id"] == job_id
-                if with_log:
-                    try:
-                        log = self._query(self.job_server + self.resource_map['log'] + "/{}/".format(job_id))
-                    except Exception:
-                        job["log"] = ''
-                    else:
-                        assert log["resource_uri"] == '/api/v2/log/{}'.format(job_id)
-                        job["log"] = log["content"]
-                return job
-        raise Exception("No such job: %s" % job_id)
+        job = None
+
+        # try both "results" and "queue" endpoints to see if the job is there
+        for resource_type in ("results", "queue"):
+            job_uri = self.job_server + self.resource_map[resource_type] + "/{}".format(job_id)
+            try:
+                job = self._query(job_uri)
+            except Exception as exc:
+                if "404" in str(exc):
+                    continue
+                else:
+                    raise
+            else:
+                break
+
+        if job is None:
+            raise Exception("No such job: %s" % job_id)  # todo: define custom Exceptions
+
+        assert job["id"] == job_id
+        if with_log:
+            try:
+                log = self._query(self.job_server + self.resource_map['log'] + "/{}".format(job_id))
+            except Exception:
+                job["log"] = ''
+            else:
+                assert log["resource_uri"] == '/api/v2/log/{}'.format(job_id)
+                job["log"] = log["content"]
+        return job
 
     def remove_completed_job(self, job_id):
         """
@@ -406,8 +418,7 @@ class Client(object):
         if datalist:
             server_paths = [urlparse(item["url"])[2] for item in datalist]
             if len(server_paths) > 1:
-                common_prefix = os.path.commonprefix(server_paths)
-                assert common_prefix[-1] == "/"
+                common_prefix = os.path.dirname(os.path.commonprefix(server_paths))
             else:
                 common_prefix = os.path.dirname(server_paths[0])
             relative_paths = [os.path.relpath(p, common_prefix) for p in server_paths]

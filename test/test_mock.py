@@ -57,6 +57,7 @@ class MockResponse(object):
     def __init__(self, return_value, headers=None, status_code=200):
         self.return_value = return_value
         self.headers = headers
+        self.status_code = status_code
         if status_code >= 400:
             self.ok = False
 
@@ -76,6 +77,8 @@ class MockRequestsModule(object):
             ENTRYPOINT + "/results?id=43": MockResponse({"objects": [JOB43]}),
             ENTRYPOINT + "/queue/42": MockResponse(JOB42),
             ENTRYPOINT + "/queue/43": MockResponse(JOB43),
+            ENTRYPOINT + "/results/42": MockResponse({"error_message": "no such job"}, status_code=404),
+            ENTRYPOINT + "/results/43": MockResponse({"error_message": "no such job"}, status_code=404),
             ENTRYPOINT + "/queue/submitted/?user_id=" + TESTUSERID: MockResponse([JOB42]),
             ENTRYPOINT + "/results?collab_id=" + TESTCOLLAB: MockResponse([JOB43]),
             ENTRYPOINT + "/results?collab_id=" + EMPTYCOLLAB: MockResponse([]),

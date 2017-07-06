@@ -300,22 +300,22 @@ class JobRunner(object):
         """
         Get the next job by oldest date in the queue, and run it.
         """
-        #logger.debug("Retrieving next job")
-        nmpi_job = self.client.get_next_job()
-        if nmpi_job is None:
-            #logger.debug("No new jobs")
-            return None
-        saga_job = self.run(nmpi_job)
-        self._update_status(nmpi_job, saga_job, default_job_states)
-        saga_job.wait()
-        logger.info("Job {} completed".format(saga_job.id))
-        # TODO: the script should not wait for the job to finish.
-        #       Rather it should submit the job, and then check
-        #       whether any previously submitted jobs have completed,
-        #       and update those.
-        self._handle_output_data(nmpi_job, saga_job)
-        self._update_status(nmpi_job, saga_job, default_job_states)
-        logger.debug("Status of completed job updated")
+        pending_jobs = []
+        while True:
+            logger.info("Retrieving next job")
+            nmpi_job = self.client.get_next_job()
+            if nmpi_job is None or nmpi_job in [n for n, s in pending_jobs]:
+                logger.info("No new jobs")
+                break
+            saga_job = self.run(nmpi_job)
+            self._update_status(nmpi_job, saga_job, default_job_states)
+            pending_jobs.append((nmpi_job, saga_job))
+        for nmpi_job, saga_job in pending_jobs:
+            saga_job.wait()
+            logger.info("Job {} completed".format(saga_job.id))
+            self._handle_output_data(nmpi_job, saga_job)
+            self._update_status(nmpi_job, saga_job, default_job_states)
+            logger.debug("Status of completed job updated")
         return nmpi_job
 
     def run(self, nmpi_job):

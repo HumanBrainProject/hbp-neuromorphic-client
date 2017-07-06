@@ -29,7 +29,7 @@ from datetime import datetime
 import time
 import saga
 import sh
-from sh import git, unzip, tar
+from sh import git, unzip, tar, curl
 import nmpi
 import codecs
 import requests
@@ -271,11 +271,15 @@ def read_output(saga_job):
     job_desc = saga_job.get_description()
     outfile= path.join(job_desc.working_directory, job_desc.output)
     errfile = path.join(job_desc.working_directory, job_desc.error)
-    with open(outfile) as fp:
-        stdout = fp.read()
-    with open(errfile) as fp:
-        stderr = fp.read()
-    return stdout, stderr
+    try:
+        with open(outfile) as fp:
+            stdout = fp.read()
+        with open(errfile) as fp:
+            stderr = fp.read()
+        return stdout, stderr
+    except IOError:
+        # weird things can happen...
+        return "", ""
 
 
 class JobRunner(object):
@@ -400,12 +404,17 @@ class JobRunner(object):
         if url_candidate.scheme and url_candidate.path.endswith((".tar.gz", ".zip", ".tgz")):
             self._create_working_directory(job_desc.working_directory)
             target = os.path.join(job_desc.working_directory, os.path.basename(url_candidate.path))
-            urlretrieve(nmpi_job['code'], target)
+            #urlretrieve(nmpi_job['code'], target) # not working via KIP https proxy
+            curl(nmpi_job['code'], '-o', target)
             logger.info("Retrieved file from {} to local target {}".format(nmpi_job['code'], target))
             if url_candidate.path.endswith((".tar.gz", ".tgz")):
                 tar("xzf", target, directory=job_desc.working_directory)
             elif url_candidate.path.endswith(".zip"):
-                unzip(target, d=job_desc.working_directory)
+                try:
+                    # -o for auto-overwrite
+                    unzip('-o', target, d=job_desc.working_directory)
+                except:
+                    logger.error("Could not unzip file {}".format(target))
         else:
             try:
                 # Check the "code" field for a git url (clone it into the workdir) or a script (create a file into the workdir)

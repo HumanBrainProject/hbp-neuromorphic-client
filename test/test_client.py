@@ -81,6 +81,17 @@ class QueueInteractionTest(unittest.TestCase):
         else:
             self.fail("403 error not raised")
 
+    def test_submit_job_with_tags(self):
+        # submit tags as a list
+        job1_id = member_client.submit_job(source=simple_test_script,
+                                           platform=TEST_SYSTEM, collab_id=TEST_COLLAB, tags=["tag1", "tag2"])
+        job1 = member_client.get_job(job1_id)
+        self.assertEqual(job1["tags"], ["tag1", "tag2"])
+        # submit tags not as a list
+        response = member_client.submit_job(source=simple_test_script,
+                                            platform=TEST_SYSTEM, collab_id=TEST_COLLAB, tags=1234)
+        self.assertEqual(response, "Job not submitted: 'tags' field should be a list.")
+
     def test_queued_jobs_verbose(self):
         job_id = self._submit_job()
         jobs = member_client.queued_jobs(verbose=True)

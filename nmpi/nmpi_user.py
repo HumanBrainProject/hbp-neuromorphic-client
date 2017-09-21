@@ -267,7 +267,7 @@ class Client(object):
             self._handle_error(req)
 
     def submit_job(self, source, platform, collab_id, config=None, inputs=None,
-                   command="run.py {system}"):
+                   command="run.py {system}", tags=None):
         """
         Submit a job to the platform.
 
@@ -285,6 +285,7 @@ class Client(object):
                 simulation.
             :command: (optional) the path to the main Python script relative to
                 the root of the repository or zip file. Defaults to "run.py {system}".
+            :tags: (optional) a list of tags (strings) describing the job.
         """
         source = os.path.expanduser(source)
         if os.path.exists(source) and os.path.splitext(source)[1] == ".py":
@@ -304,6 +305,11 @@ class Client(object):
             job['input_data'] = [self.create_data_item(input) for input in inputs]
         if config is not None:
             job['hardware_config'] = config
+        if tags is not None:
+            if isinstance(tags, list):
+                job["tags"] = tags
+            else:
+                return "Job not submitted: 'tags' field should be a list."
         result = self._post(self.job_server + self.resource_map["queue"], job)
         print("Job submitted")
         return result

@@ -314,6 +314,33 @@ class Client(object):
         print("Job submitted")
         return result
 
+    def submit_comment(self, job_id, text):
+        """
+        Submit a comment to a job (results resource) in the platform.
+
+        *Arguments*:
+            :job_id: id (integer or URI) of the job the comment will be submitted to.
+            :text: the content of the comment.
+        """
+        status = self.get_job(job_id, with_log=False)["status"]
+        if status not in ['finished', 'error']:
+            return "Comment not submitted: job id must belong to a completed job (with status finished or error)."
+
+        comment = {
+            'content': text,
+            'user': self.user_info["id"]
+        }
+
+        try:
+            job_id = int(job_id)
+            comment['job'] = "{}/{}".format(self.resource_map["results"], job_id)
+        except ValueError:
+            comment['job'] = job_id
+
+        result = self._post(self.job_server + self.resource_map["comment"], comment)
+        print("Comment submitted")
+        return result
+
     def job_status(self, job_id):
         """
         Return the current status of the job with ID `job_id` (integer or URI).

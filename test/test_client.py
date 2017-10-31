@@ -110,6 +110,17 @@ class QueueInteractionTest(unittest.TestCase):
             self.assertEqual(job_uri[:14], '/api/v2/queue/')
         self.assertIn(new_job, job_uris)
 
+    def test_submit_comment_to_completed_job(self):
+        job_uri = member_client.completed_jobs(TEST_COLLAB)[0]
+        comment_uri = member_client.submit_comment(job_uri, "test comment")
+        self.assertEqual(comment_uri[:16], '/api/v2/comment/')
+
+    def test_submit_comment_to_queued_job(self):
+        job_uri = member_client.queued_jobs()[0]
+        response = member_client.submit_comment(job_uri, "test comment")
+        self.assertEqual(
+            response, 'Comment not submitted: job id must belong to a completed job (with status finished or error).')
+
     def test_job_status(self):
         job_uri = self._submit_job()
         response = member_client.job_status(job_uri)

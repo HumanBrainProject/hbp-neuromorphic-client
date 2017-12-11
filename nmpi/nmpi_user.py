@@ -224,7 +224,7 @@ class Client(object):
         logger.error(errmsg)
         raise Exception("Error %s: %s" % (request.status_code, errmsg))
 
-    def _query(self, resource_uri, verbose=False):
+    def _query(self, resource_uri, verbose=False, ignore404=False):
         """
         Retrieve a resource or list of resources.
         """
@@ -239,6 +239,8 @@ class Client(object):
                     return [obj["resource_uri"] for obj in objects]
             else:
                 return req.json()
+        elif ignore404 and req.status_code == 404:
+            return None
         else:
             self._handle_error(req)
 
@@ -376,14 +378,8 @@ class Client(object):
         # try both "results" and "queue" endpoints to see if the job is there
         for resource_type in ("results", "queue"):
             job_uri = self.job_server + self.resource_map[resource_type] + "/{}".format(job_id)
-            try:
-                job = self._query(job_uri)
-            except Exception as exc:
-                if "404" in str(exc):
-                    continue
-                else:
-                    raise
-            else:
+            job = self._query(job_uri, ignore404=True)
+            if job is not None:
                 break
 
         if job is None:

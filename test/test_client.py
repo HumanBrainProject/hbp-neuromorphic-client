@@ -77,7 +77,7 @@ class QueueInteractionTest(unittest.TestCase):
                                         collab_id=TEST_COLLAB)
         except Exception as err:
             self.assertEqual(err.args[0],
-                             "Error 403: You do not have a compute time allocation for the not_a_platform platform. Please submit a resource request.")
+                             "Error 403: You do not have a compute time allocation for the not_a_platform platform in collab {}. Please submit a resource request.".format(TEST_COLLAB))
         else:
             self.fail("403 error not raised")
 
@@ -86,7 +86,7 @@ class QueueInteractionTest(unittest.TestCase):
         job1_id = member_client.submit_job(source=simple_test_script,
                                            platform=TEST_SYSTEM, collab_id=TEST_COLLAB, tags=["tag1", "tag2"])
         job1 = member_client.get_job(job1_id)
-        self.assertEqual(job1["tags"], ["tag1", "tag2"])
+        self.assertEqual(set(job1["tags"]), set(["tag1", "tag2"]))
         # submit tags not as a list
         response = member_client.submit_job(source=simple_test_script,
                                             platform=TEST_SYSTEM, collab_id=TEST_COLLAB, tags=1234)

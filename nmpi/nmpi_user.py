@@ -80,7 +80,8 @@ class Client(object):
     results of completed jobs.
 
     *Arguments*:
-        :username, password: credentials for accessing the platform
+        :username, password: credentials for accessing the platform.
+            Not needed in Jupyter notebooks within the HBP Collaboratory.
         :job_service: the base URL of the platform Job Service.
             Generally the default value should be used.
         :quotas_service: the base URL of the platform Quotas Service.
@@ -91,7 +92,7 @@ class Client(object):
             set this to False, but this is not recommended.
     """
 
-    def __init__(self, username,
+    def __init__(self, username=None,
                  password=None,
                  job_service="https://nmpi.hbpneuromorphic.eu/api/v2/",
                  quotas_service="https://quotas.hbpneuromorphic.eu",
@@ -201,7 +202,10 @@ class Client(object):
                            auth=self.auth)
         if req.ok:
             self.user_info = req.json()
-            assert self.user_info['username'] == self.username
+            if self.username:
+                assert self.user_info['username'] == self.username
+            else:
+                self.username = self.user_info['username']
         else:
             self._handle_error(req)
 

@@ -34,6 +34,12 @@ except ImportError:  # Py3
 import errno
 import requests
 from requests.auth import AuthBase
+try:
+    from jupyter_collab_storage import oauth_token_handler
+    have_collab_token_handler = True
+except ImportError:
+    have_collab_token_handler = False
+
 
 logger = logging.getLogger("NMPI")
 
@@ -74,7 +80,8 @@ class Client(object):
     results of completed jobs.
 
     *Arguments*:
-        :username, password: credentials for accessing the platform
+        :username, password: credentials for accessing the platform.
+            Not needed in Jupyter notebooks within the HBP Collaboratory.
         :job_service: the base URL of the platform Job Service.
             Generally the default value should be used.
         :quotas_service: the base URL of the platform Quotas Service.
@@ -85,15 +92,20 @@ class Client(object):
             set this to False, but this is not recommended.
     """
 
-    def __init__(self, username,
+    def __init__(self, username=None,
                  password=None,
                  job_service="https://nmpi.hbpneuromorphic.eu/api/v2/",
                  quotas_service="https://quotas.hbpneuromorphic.eu",
                  token=None,
                  verify=True):
         if password is None and token is None:
-            # prompt for password
-            password = getpass.getpass()
+            if have_collab_token_handler:
+                # if are we running in a Jupyter notebook within the Collaboratory
+                # the token is already available
+                token = oauth_token_handler.get_token()
+            else:
+                # prompt for password
+                password = getpass.getpass()
         self.username = username
         self.cert = None
         self.verify = verify
@@ -190,7 +202,10 @@ class Client(object):
                            auth=self.auth)
         if req.ok:
             self.user_info = req.json()
-            assert self.user_info['username'] == self.username
+            if self.username:
+                assert self.user_info['username'] == self.username
+            else:
+                self.username = self.user_info['username']
         else:
             self._handle_error(req)
 
@@ -345,8 +360,6 @@ class Client(object):
         """
         Return the current status of the job with ID `job_id` (integer or URI).
         """
-        logger.debug(type(job_id))
-        logger.debug(str(job_id))
         return self.get_job(job_id, with_log=False)["status"]
 
     def get_job(self, job_id, with_log=True):

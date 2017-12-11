@@ -34,6 +34,12 @@ except ImportError:  # Py3
 import errno
 import requests
 from requests.auth import AuthBase
+try:
+    from jupyter_collab_storage import oauth_token_handler
+    have_collab_token_handler = True
+except ImportError:
+    have_collab_token_handler = False
+
 
 logger = logging.getLogger("NMPI")
 
@@ -92,8 +98,13 @@ class Client(object):
                  token=None,
                  verify=True):
         if password is None and token is None:
-            # prompt for password
-            password = getpass.getpass()
+            if have_collab_token_handler:
+                # if are we running in a Jupyter notebook within the Collaboratory
+                # the token is already available
+                token = oauth_token_handler.get_token()
+            else:
+                # prompt for password
+                password = getpass.getpass()
         self.username = username
         self.cert = None
         self.verify = verify
@@ -345,8 +356,6 @@ class Client(object):
         """
         Return the current status of the job with ID `job_id` (integer or URI).
         """
-        logger.debug(type(job_id))
-        logger.debug(str(job_id))
         return self.get_job(job_id, with_log=False)["status"]
 
     def get_job(self, job_id, with_log=True):

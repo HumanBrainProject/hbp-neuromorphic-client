@@ -25,6 +25,7 @@ import json
 import getpass
 import logging
 import uuid
+import time
 try:
     from urlparse import urlparse
     from urllib import urlretrieve, urlencode
@@ -110,6 +111,7 @@ class Client(object):
         self.cert = None
         self.verify = verify
         self.token = token
+        self.sleep_interval = 2.0
         (scheme, netloc, path, params, query, fragment) = urlparse(job_service)
         self.job_server = "%s://%s" % (scheme, netloc)
         self.quotas_server = quotas_service
@@ -284,7 +286,7 @@ class Client(object):
             self._handle_error(req)
 
     def submit_job(self, source, platform, collab_id, config=None, inputs=None,
-                   command="run.py {system}", tags=None):
+                   command="run.py {system}", tags=None, wait=False):
         """
         Submit a job to the platform.
 
@@ -303,6 +305,12 @@ class Client(object):
             :command: (optional) the path to the main Python script relative to
                 the root of the repository or zip file. Defaults to "run.py {system}".
             :tags: (optional) a list of tags (strings) describing the job.
+            :wait: (default False) if True, do not return until the job has completed,
+                if False, return immediately with the job id.
+
+        *Returns*:
+            The job id as a relative URI
+            Unless `wait=True`, in which case returns the job as a dictionary.
         """
         source = os.path.expanduser(source)
         if os.path.exists(source) and os.path.splitext(source)[1] == ".py":
@@ -327,8 +335,18 @@ class Client(object):
                 job["tags"] = tags
             else:
                 return "Job not submitted: 'tags' field should be a list."
-        result = self._post(self.job_server + self.resource_map["queue"], job)
+        job_id = self._post(self.job_server + self.resource_map["queue"], job)
         print("Job submitted")
+        if wait:
+            time.sleep(self.sleep_interval)
+            state = self.job_status(job_id)
+            while state in ('submitted', 'running'):
+                time.sleep(self.sleep_interval)
+                state = self.job_status(job_id)
+            result = self.get_job(job_id, with_log=True)
+            print("Job {}".format(state))
+        else:
+            result = job_id
         return result
 
     def submit_comment(self, job_id, text):

@@ -4,7 +4,7 @@ Client for interacting with the Neuromorphic Computing Platform of the Human Bra
 Authors: Andrew P. Davison, Domenico Guarino, UNIC, CNRS
 
 
-Copyright 2016 Andrew P. Davison and Domenico Guarino, Centre National de la Recherche Scientifique
+Copyright 2016-2018 Andrew P. Davison and Domenico Guarino, Centre National de la Recherche Scientifique
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -375,8 +375,10 @@ class Client(object):
             job_id = int(job_id.split("/")[-1])
         job = None
 
-        # try both "results" and "queue" endpoints to see if the job is there
-        for resource_type in ("results", "queue"):
+        # try both "results" and "queue" endpoints to see if the job is there.
+        # The order is important to avoid a race condition where the job completes
+        # in between the two calls.
+        for resource_type in ("queue", "results"):
             job_uri = self.job_server + self.resource_map[resource_type] + "/{}".format(job_id)
             job = self._query(job_uri, ignore404=True)
             if job is not None:

@@ -340,7 +340,7 @@ class Client(object):
         if wait:
             time.sleep(self.sleep_interval)
             state = self.job_status(job_id)
-            while state in ('submitted', 'running'):
+            while state not in ('finished', 'error'):
                 time.sleep(self.sleep_interval)
                 state = self.job_status(job_id)
             result = self.get_job(job_id, with_log=True)

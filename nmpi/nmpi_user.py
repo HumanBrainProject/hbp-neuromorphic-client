@@ -33,6 +33,8 @@ except ImportError:  # Py3
     from urllib.parse import urlparse, urlencode
     from urllib.request import urlretrieve
 import errno
+import fnmatch
+import mimetypes
 import requests
 from requests.auth import AuthBase
 try:
@@ -40,8 +42,14 @@ try:
     have_collab_token_handler = True
 except ImportError:
     have_collab_token_handler = False
+try:
+    from hbp_service_client.storage_service.client import Client as StorageClient
+    from hbp_service_client.storage_service.exceptions import StorageException
+    have_collab_client = True
+except ImportError:
+    have_collab_client = False
 
-
+mimetypes.init()
 logger = logging.getLogger("NMPI")
 
 IDENTITY_SERVICE = "https://services.humanbrainproject.eu/idm/v1/api"
@@ -115,6 +123,8 @@ class Client(object):
         (scheme, netloc, path, params, query, fragment) = urlparse(job_service)
         self.job_server = "%s://%s" % (scheme, netloc)
         self.quotas_server = quotas_service
+        self.storage_client = None
+        self.collab_source_folder = "source_code"  # remote folder into which code may be uploaded
         # if a token has been given, no need to authenticate
         if not self.token:
             self._hbp_auth(username, password)
@@ -292,10 +302,11 @@ class Client(object):
 
         *Arguments*:
             :source: the Python script to be run, the URL of a public version
-                control repository containing Python code, or a zip file
-                containing Python code.
+                control repository containing Python code, a zip file
+                containing Python code, or a local directory containing
+                Python code.
             :platform: the neuromorphic hardware system to be used.
-                Either "BrainScaleS" or "SpiNNaker"
+                Either "BrainScaleS" or "SpiNNaker".
             :collab_id: the ID of the collab to which the job belongs
             :config: (optional) a dictionary containing configuration information
                 for the hardware platform. See the Platform Guidebook for
@@ -310,21 +321,36 @@ class Client(object):
 
         *Returns*:
             The job id as a relative URI
-            Unless `wait=True`, in which case returns the job as a dictionary.
+            unless `wait=True`, in which case returns the job as a dictionary.
+
+        *Notes*:
+            If the `source` argument is a directory containing Python code, the
+            directory contents will be uploaded to Collab storage into a folder
+            named according to the property `client.collab_source_folder`
+            (default: "source_code")
         """
-        source = os.path.expanduser(source)
-        if os.path.exists(source) and os.path.splitext(source)[1] == ".py":
-            with open(source, "r") as fp:
-                source_code = fp.read()
-        else:
-            source_code = source
         job = {
-            'code': source_code,
             'command': command,
             'hardware_platform': platform,
             'collab_id': collab_id,
             'user_id': self.user_info["id"]
         }
+
+        source = os.path.expanduser(source)
+        if os.path.exists(source):
+            if os.path.splitext(source)[1] == ".py":
+                with open(source, "r") as fp:
+                    job['code'] = fp.read()
+            elif os.path.isdir(source):
+                remote_folder = self.upload_to_storage(source, 
+                                                       collab_id,
+                                                       remote_folder=self.collab_source_folder,
+                                                       overwrite=True)
+                job['code'] = remote_folder["uuid"]
+                job['selected_tab'] = "upload_script"
+                job['command'] = self.collab_source_folder + "/" + job["command"]
+        else:
+            job['code'] = source
 
         if inputs is not None:
             job['input_data'] = [self.create_data_item(input) for input in inputs]
@@ -524,6 +550,79 @@ class Client(object):
         data_item = {"url": url}
         result = self._post(self.job_server + self.resource_map["dataitem"], data_item)
         return result
+
+    def upload_to_storage(self, local_directory, collab_id, remote_folder="",
+                          overwrite=False, include=["*.py"]):
+        """
+        Upload the contents of a local directory to Collab storage.
+
+        This ignores hidden directories (names starting with ".") and only
+        uploads files whose names match the patterns in the `include` argument.
+
+        `remote_folder` should be the relative path of the remote folder in which to
+        put the uploaded files.
+
+        Returns the entity id of the remote folder
+        """
+        
+        if not self.storage_client:
+            if have_collab_client:
+                self.storage_client = StorageClient.new(self.token)
+            else:
+                raise ImportError("Please install the hbp_service_client package")
+        
+        base_path = '/{}'.format(self.storage_client.api_client.list_projects(collab_id=collab_id)['results'][0]['name'])
+
+        uploads = []
+        remote_dirs = set()
+        for dirpath, dirnames, filenames in os.walk(local_directory):
+            # don't enter hidden directories
+            for dirname in dirnames:
+                if dirname.startswith("."):
+                    dirnames.remove(dirname)
+
+            matches = []
+            for pattern in include:
+                matches.extend(fnmatch.filter(filenames, pattern))
+            relative_dir = os.path.relpath(dirpath, local_directory)
+            if relative_dir == ".":
+                relative_dir = ""
+            if matches:
+                for filename in matches:
+                    local_path = os.path.join(dirpath, filename)
+                    remote_dir = os.path.join(base_path, remote_folder, relative_dir).rstrip("/")  # trailing slash not allowed by mkdir
+                    remote_dirs.add(remote_dir)
+                    remote_path = os.path.join(remote_dir, filename)
+                    content_type = mimetypes.guess_type(local_path, strict=False)[0]
+                    uploads.append((local_path, remote_path, content_type))
+
+        # Create remote directories as needed
+        for remote_path in sorted(remote_dirs, key=lambda x: len(x)):
+            # handle shortest paths first to ensure we create parents before children
+            try:
+                self.storage_client.mkdir(remote_path)
+            except StorageException as err:
+                if "already exists" not in err.args[0]:
+                    raise
+        # Upload files
+        n = len(uploads)
+        errors = []
+        for i, (local_path, remote_path, content_type) in enumerate(uploads, start=1):
+            print("[Uploading {} / {}] {} --> {}".format(i, n, local_path, remote_path))
+            try:
+                self.storage_client.upload_file(local_path, remote_path, content_type)
+            except StorageException as err:
+                if overwrite:
+                    self.storage_client.delete(remote_path)
+                    self.storage_client.upload_file(local_path, remote_path, content_type)
+                else:
+                    errors.append(remote_path)
+        if errors:
+            errmsg = "The following files were not uploaded as they already exist: \n  "
+            errmsg += "\n  ".join(errors)
+            raise StorageException(errmsg)
+
+        return self.storage_client.api_client.get_entity_by_query(path=os.path.join(base_path, remote_folder))
 
     def my_collabs(self):
         """

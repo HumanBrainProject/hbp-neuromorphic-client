@@ -559,10 +559,17 @@ class Client(object):
         This ignores hidden directories (names starting with ".") and only
         uploads files whose names match the patterns in the `include` argument.
 
-        `remote_folder` should be the relative path of the remote folder in which to
-        put the uploaded files.
+        *Arguments*:
+            :local_directory: path of the directory to be uploaded.
+            :collab_id: the ID of the collab to whose storage the files will be uploaded.
+            :remote_folder: relative path of the remote folder in which to put the uploaded files.
+            :overwrite: (default False) if True, overwrite files that already exist, 
+                        otherwise raise a StorageException
+            :include: list of wildcard patterns indicating which files should be uploaded.
+                      By default, matches only Python files
 
-        Returns the entity id of the remote folder
+        *Returns*:
+            the entity id of the remote folder
         """
         
         if not self.storage_client:

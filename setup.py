@@ -7,7 +7,7 @@ long_description = open("README.md").read()
 
 setup(
     name="hbp_neuromorphic_platform",
-    version='0.7.1',
+    version='0.7.2',
     packages=['nmpi'],
     install_requires=['requests',],
     author="Andrew P. Davison and Domenico Guarino",

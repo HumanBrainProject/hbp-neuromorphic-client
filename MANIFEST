@@ -1,5 +1,5 @@
 # This file contains the list of files that should be distributed in the PyPI package.
-README.txt
+README.md
 setup.py
 nmpi/__init__.py
 nmpi/nmpi_user.py

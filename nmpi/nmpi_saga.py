@@ -29,7 +29,7 @@ from datetime import datetime
 import time
 import saga
 import sh
-from sh import git, unzip, tar
+from sh import git, unzip, tar, curl
 import nmpi
 import codecs
 import requests
@@ -151,16 +151,18 @@ class HardwareClient(nmpi.Client):
 
     """
 
-    def __init__(self, username, platform, token, entrypoint="https://nmpi.hbpneuromorphic.eu/api/v2/", verify=True):
+    def __init__(self, username, platform, token,
+                 job_service="https://nmpi.hbpneuromorphic.eu/api/v2/",
+                 verify=True):
         self.username = username
         self.cert = None
         self.verify = verify
         self.token = token
-        (scheme, netloc, path, params, query, fragment) = urlparse(entrypoint)
-        self.server = "%s://%s" % (scheme, netloc)
+        (scheme, netloc, path, params, query, fragment) = urlparse(job_service)
+        self.job_server = "%s://%s" % (scheme, netloc)
         self.auth = NMPAuth(self.username, self.token)
         # get schema
-        req = requests.get(entrypoint, cert=self.cert, verify=self.verify, auth=self.auth)
+        req = requests.get(job_service, cert=self.cert, verify=self.verify, auth=self.auth)
         if req.ok:
             self._schema = req.json()
             self.resource_map = {name: entry["list_endpoint"]
@@ -173,16 +175,16 @@ class HardwareClient(nmpi.Client):
         """
         Get the next job by oldest date in the queue.
         """
-        job_nmpi = self._query(self.resource_map["queue"] + "/submitted/next/" + self.platform + "/")
+        job_nmpi = self._query(self.job_server + self.resource_map["queue"] + "/submitted/next/" + self.platform + "/")
         if 'warning' in job_nmpi:
             job_nmpi = None
         return job_nmpi
 
     def update_job(self, job):
         log = job.pop("log", None)
-        response = self._put(job["resource_uri"], job)
+        response = self._put(self.job_server + job["resource_uri"], job)
         if log:
-            log_response = self._put("/api/v2/log/{}".format(job["id"]),
+            log_response = self._put(self.job_server + "/api/v2/log/{}".format(job["id"]),
                                      {"content": log})
         return response
 
@@ -192,9 +194,26 @@ class HardwareClient(nmpi.Client):
         reset its status to "submitted".
         """
         job["status"] = "submitted"
-        log_response = self._put("/api/v2/log/{}".format(job["id"]),
+        log_response = self._put(self.job_server + "/api/v2/log/{}".format(job["id"]),
                                  {"content": "reset status to 'submitted'\n"})
-        return self._put(job["resource_uri"], job)
+        return self._put(self.job_server + job["resource_uri"], job)
+
+    def kill_job(self, job):
+        """
+        Set the status of a queued or running job to "error".
+
+        This should be used circumspectly. It is usually better to use
+        `reset_job()`.
+        """
+        if job["status"] not in ("running", "submitted"):
+            raise Exception("You cannot kill a job with status {}".format(job["status"]))
+        job["status"] = "error"
+        log = job.pop("log", "")
+        response = self._put(self.job_server + job["resource_uri"], job)
+        log += "Internal error. Please resubmit the job\n"
+        log_response = self._put(self.job_server + "/api/v2/log/{}".format(job["id"]),
+                                 {"content": log})
+        return response
 
     def queued_jobs(self, verbose=False):
         """
@@ -206,7 +225,7 @@ class HardwareClient(nmpi.Client):
         verbose : if False, return just the job URIs,
                   if True, return full details.
         """
-        return self._query(self.resource_map["queue"] + "/submitted/?hardware_platform=" + str(self.platform),
+        return self._query(self.job_server + self.resource_map["queue"] + "/submitted/?hardware_platform=" + str(self.platform),
                            verbose=verbose)
 
     def running_jobs(self, verbose=False):
@@ -219,7 +238,7 @@ class HardwareClient(nmpi.Client):
         verbose : if False, return just the job URIs,
                   if True, return full details.
         """
-        return self._query(self.resource_map["queue"] + "/running/?hardware_platform=" + str(self.platform),
+        return self._query(self.job_server + self.resource_map["queue"] + "/running/?hardware_platform=" + str(self.platform),
                            verbose=verbose)
 
 
@@ -252,11 +271,15 @@ def read_output(saga_job):
     job_desc = saga_job.get_description()
     outfile= path.join(job_desc.working_directory, job_desc.output)
     errfile = path.join(job_desc.working_directory, job_desc.error)
-    with open(outfile) as fp:
-        stdout = fp.read()
-    with open(errfile) as fp:
-        stderr = fp.read()
-    return stdout, stderr
+    try:
+        with open(outfile) as fp:
+            stdout = fp.read()
+        with open(errfile) as fp:
+            stderr = fp.read()
+        return stdout, stderr
+    except IOError:
+        # weird things can happen...
+        return "", ""
 
 
 class JobRunner(object):
@@ -269,7 +292,7 @@ class JobRunner(object):
         self.service = saga.job.Service(config['JOB_SERVICE_ADAPTOR'])
         self.client = HardwareClient(username=config['AUTH_USER'],
                                      token=config['AUTH_TOKEN'],
-                                     entrypoint=config['NMPI_HOST'] + config['NMPI_API'],
+                                     job_service=config['NMPI_HOST'] + config['NMPI_API'],
                                      platform=config['PLATFORM_NAME'],
                                      verify=config['VERIFY_SSL'])
 
@@ -277,22 +300,22 @@ class JobRunner(object):
         """
         Get the next job by oldest date in the queue, and run it.
         """
-        logger.info("Retrieving next job")
-        nmpi_job = self.client.get_next_job()
-        if nmpi_job is None:
-            logger.info("No new jobs")
-            return None
-        saga_job = self.run(nmpi_job)
-        self._update_status(nmpi_job, saga_job, default_job_states)
-        saga_job.wait()
-        logger.info("Job {} completed".format(saga_job.id))
-        # TODO: the script should not wait for the job to finish.
-        #       Rather it should submit the job, and then check
-        #       whether any previously submitted jobs have completed,
-        #       and update those.
-        self._handle_output_data(nmpi_job, saga_job)
-        self._update_status(nmpi_job, saga_job, default_job_states)
-        logger.debug("Status of completed job updated")
+        pending_jobs = []
+        while True:
+            logger.info("Retrieving next job")
+            nmpi_job = self.client.get_next_job()
+            if nmpi_job is None or nmpi_job in [n for n, s in pending_jobs]:
+                logger.info("No new jobs")
+                break
+            saga_job = self.run(nmpi_job)
+            self._update_status(nmpi_job, saga_job, default_job_states)
+            pending_jobs.append((nmpi_job, saga_job))
+        for nmpi_job, saga_job in pending_jobs:
+            saga_job.wait()
+            logger.info("Job {} completed".format(saga_job.id))
+            self._handle_output_data(nmpi_job, saga_job)
+            self._update_status(nmpi_job, saga_job, default_job_states)
+            logger.debug("Status of completed job updated")
         return nmpi_job
 
     def run(self, nmpi_job):
@@ -307,8 +330,9 @@ class JobRunner(object):
         # Run the job
         self.start_time = datetime.now()
         time.sleep(1)  # ensure output file timestamps are different from start_time
-        logger.debug("Running job {}".format(saga_job.id))
+        logger.info("Running job {}".format(nmpi_job['id']))
         saga_job.run()
+        # todo: add logger.warning if job fails
         return saga_job
 
     def close(self):
@@ -355,14 +379,14 @@ class JobRunner(object):
         # job_desc.threads_per_process
         # job_desc.wall_time_limit = 1
         # job_desc.total_physical_memory
-        logger.debug(job_desc.arguments)
+        logger.info(command_line)
         return job_desc
 
     def _create_working_directory(self, workdir):
         if not path.exists(workdir):
             logger.debug("Creating directory %s" % workdir)
             os.makedirs(workdir)
-            logger.info("Created directory %s" % workdir)
+            logger.debug("Created directory %s" % workdir)
         else:
             logger.debug("Directory %s already exists" % workdir)
 
@@ -380,21 +404,26 @@ class JobRunner(object):
         if url_candidate.scheme and url_candidate.path.endswith((".tar.gz", ".zip", ".tgz")):
             self._create_working_directory(job_desc.working_directory)
             target = os.path.join(job_desc.working_directory, os.path.basename(url_candidate.path))
-            urlretrieve(nmpi_job['code'], target)
-            logger.debug("Retrieved file from {} to local target {}".format(nmpi_job['code'], target))
+            #urlretrieve(nmpi_job['code'], target) # not working via KIP https proxy
+            curl(nmpi_job['code'], '-o', target)
+            logger.info("Retrieved file from {} to local target {}".format(nmpi_job['code'], target))
             if url_candidate.path.endswith((".tar.gz", ".tgz")):
                 tar("xzf", target, directory=job_desc.working_directory)
             elif url_candidate.path.endswith(".zip"):
-                unzip(target, d=job_desc.working_directory)
+                try:
+                    # -o for auto-overwrite
+                    unzip('-o', target, d=job_desc.working_directory)
+                except:
+                    logger.error("Could not unzip file {}".format(target))
         else:
             try:
                 # Check the "code" field for a git url (clone it into the workdir) or a script (create a file into the workdir)
                 # URL: use git clone
                 git.clone('--recursive', nmpi_job['code'], job_desc.working_directory)
-                logger.debug("Cloned repository {}".format(nmpi_job['code']))
+                logger.info("Cloned repository {}".format(nmpi_job['code']))
             except (sh.ErrorReturnCode_128, sh.ErrorReturnCode):
                 # SCRIPT: create file (in the current directory)
-                logger.debug("The code field appears to be a script.")
+                logger.info("The code field appears to be a script.")
                 self._create_working_directory(job_desc.working_directory)
                 with codecs.open(job_desc.arguments[0], 'w', encoding='utf8') as job_main_script:
                     job_main_script.write(nmpi_job['code'])
@@ -429,16 +458,22 @@ class JobRunner(object):
                                                      ", ".join(new_files)))
         if self.config["DATA_DIRECTORY"] != self.config["WORKING_DIRECTORY"]:
             if not path.exists(self.config['DATA_DIRECTORY']):
-                os.makedirs(self.config['DATA_DIRECTORY'])
+                try:
+                    os.makedirs(self.config['DATA_DIRECTORY'])
+                except Exception as err:
+                    logging.error(err.message)
             for new_file in new_files:
-                new_file_path = path.join(output_dir, new_file)
-                if not os.path.exists(os.path.dirname(new_file_path)):
-                    os.makedirs(os.path.dirname(new_file_path))
-                shutil.copyfile(path.join(job_desc.working_directory, new_file),
-                                new_file_path)
+                try:
+                    new_file_path = path.join(output_dir, new_file)
+                    if not os.path.exists(os.path.dirname(new_file_path)):
+                        os.makedirs(os.path.dirname(new_file_path))
+                    shutil.copyfile(path.join(job_desc.working_directory, new_file),
+                                    new_file_path)
+                except Exception as err:
+                    logging.error(err.message)
         # append the new output to the list of item data and retrieve it
         # by POSTing to the DataItem list resource
-        logger.debug("Posting data items")
+        logger.info("Posting data items")
         for new_file in new_files:
             url = "{}/{}/{}".format(self.config["DATA_SERVER"], os.path.basename(job_desc.working_directory), new_file)
             resource_uri = self.client.create_data_item(url)

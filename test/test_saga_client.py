@@ -138,7 +138,7 @@ class QueueServerInteractionTest(unittest.TestCase):
 
     def setUp(self):
         self.user_client = nmpi_user.Client("testuser", token=TEST_TOKEN,
-                                            entrypoint=ENTRYPOINT,
+                                            job_service=ENTRYPOINT,
                                             verify=VERIFY)
         self.collab_id = TEST_COLLAB
         self.job_runner = nmpi_saga.JobRunner(dict(
@@ -215,7 +215,7 @@ class FullStackTest(unittest.TestCase):
         except saga.NoSuccess:
             raise unittest.SkipTest("SLURM not available")
         self.user_client = nmpi_user.Client("testuser", token=TEST_TOKEN,
-                                            entrypoint=ENTRYPOINT)
+                                            job_service=ENTRYPOINT)
         self.collab_id = TEST_COLLAB
 
     def tearDown(self):

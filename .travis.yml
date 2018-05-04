@@ -1,0 +1,11 @@
+language: python
+python:
+  - 2.7
+  - 3.5
+install:
+  - pip install requests
+  - pip install nose coverage
+  - pip install .
+script:
+  - cd test
+  - nosetests --with-coverage --cover-package=nmpi --cover-erase test_mock.py test_client.py

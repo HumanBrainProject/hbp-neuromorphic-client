@@ -201,7 +201,7 @@ class Client(object):
                             else:
                                 raise Exception("Unhandled error in Authentication." + rNMPI2.url)
                     else:
-                        raise Exception("Communication error")
+                        raise Exception("Communication error. Status code {} from HBP, expected 200".format(rNMPI2.status_code))
                 else:
                     raise Exception("Something went wrong. No text.")
             else:

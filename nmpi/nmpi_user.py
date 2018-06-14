@@ -55,6 +55,8 @@ logger = logging.getLogger("NMPI")
 IDENTITY_SERVICE = "https://services.humanbrainproject.eu/idm/v1/api"
 COLLAB_SERVICE = "https://services.humanbrainproject.eu/collab/v0"
 
+TOKENFILE = os.path.expanduser("~/.hbptoken")
+
 
 class HBPAuth(AuthBase):
     """Attaches OIDC Bearer Authentication to the given Request object."""
@@ -112,9 +114,13 @@ class Client(object):
                 # if are we running in a Jupyter notebook within the Collaboratory
                 # the token is already available
                 token = oauth_token_handler.get_token()
+            elif os.path.exists(TOKENFILE):  # check for a stored token
+                with open(TOKENFILE) as fp:
+                    token = json.load(fp).get(username, None)["access_token"]    
             else:
                 # prompt for password
                 password = getpass.getpass()
+        
         self.username = username
         self.cert = None
         self.verify = verify
@@ -125,11 +131,25 @@ class Client(object):
         self.quotas_server = quotas_service
         self.storage_client = None
         self.collab_source_folder = "source_code"  # remote folder into which code may be uploaded
+        
         # if a token has been given, no need to authenticate
         if not self.token:
             self._hbp_auth(username, password)
         self.auth = HBPAuth(self.token)
-        self._get_user_info()
+        try:
+            self._get_user_info()
+        except Exception as err:
+            if "invalid_token" in str(err):
+                password = getpass.getpass()
+                self._hbp_auth(username, password)
+                self.auth = HBPAuth(self.token)
+                self._get_user_info()
+            else:
+                raise
+
+        with open(TOKENFILE, "w") as fp:
+            json.dump({username: {"access_token": self.token}}, fp)
+
         # get schema
         req = requests.get(job_service, cert=self.cert, verify=self.verify, auth=self.auth)
         if req.ok:

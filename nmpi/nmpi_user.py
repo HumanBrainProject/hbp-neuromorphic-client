@@ -625,29 +625,54 @@ class Client(object):
 
         # Create remote directories as needed
         for remote_path in sorted(remote_dirs, key=lambda x: len(x)):
-            # handle shortest paths first to ensure we create parents before children
-            try:
-                self.storage_client.mkdir(remote_path)
-            except StorageException as err:
-                if "already exists" not in err.args[0]:
-                    raise
+            # sort to ensure we create parents before children.
+            # todo: keep track of directories that already exist to avoid
+            #       trying to create them more than once
+            path_parts = remote_path.split("/")
+            for i in range(3, len(path_parts) + 1):
+                rpath = "/".join(path_parts[:i])
+                try:
+                    self.storage_client.mkdir(rpath)
+                except StorageException as err:
+                    if "already exists" not in err.args[0]:
+                        raise
+
         # Upload files
+        # Keeps track of last modified times for uploaded files
+        # to avoid uploading unchanged files
         n = len(uploads)
         errors = []
+
+        upload_cache = {str(collab_id): {remote_folder: {}}}
+        if os.path.exists(".hbp_storage"):  # check for record of previous uploads
+            with open(".hbp_storage") as fp:
+                upload_cache = json.load(fp)
+        last_upload_times = upload_cache.get(str(collab_id), {}).get(remote_folder, {})
+        
         for i, (local_path, remote_path, content_type) in enumerate(uploads, start=1):
-            print("[Uploading {} / {}] {} --> {}".format(i, n, local_path, remote_path))
-            try:
-                self.storage_client.upload_file(local_path, remote_path, content_type)
-            except StorageException as err:
-                if overwrite:
-                    self.storage_client.delete(remote_path)
+            last_upload_time = last_upload_times.get(local_path, -1)
+            last_modified_time = os.path.getmtime(local_path)
+            if last_modified_time > last_upload_time:
+                print("[Uploading {} / {}] {} --> {}".format(i, n, local_path, remote_path))
+                try:
                     self.storage_client.upload_file(local_path, remote_path, content_type)
-                else:
-                    errors.append(remote_path)
+                except StorageException as err:
+                    if overwrite:
+                        self.storage_client.delete(remote_path)
+                        self.storage_client.upload_file(local_path, remote_path, content_type)
+                    else:
+                        errors.append(remote_path)
+                upload_cache[str(collab_id)][remote_folder][local_path] = int(time.time())
+            else:
+                print("Not uploading {}, file unchanged".format(local_path))
         if errors:
             errmsg = "The following files were not uploaded as they already exist: \n  "
             errmsg += "\n  ".join(errors)
             raise StorageException(errmsg)
+        
+        # save upload times
+        with open(".hbp_storage", "w") as fp:
+            json.dump(upload_cache, fp, indent=2)
 
         return self.storage_client.api_client.get_entity_by_query(path=os.path.join(base_path, remote_folder))
 

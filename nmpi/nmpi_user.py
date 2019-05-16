@@ -116,11 +116,15 @@ class Client(object):
                 token = oauth_token_handler.get_token()
             elif os.path.exists(TOKENFILE):  # check for a stored token
                 with open(TOKENFILE) as fp:
-                    token = json.load(fp).get(username, None)["access_token"]    
+                    token_config = json.load(fp).get(username, None)
+                    if token_config:
+                        token = token_config["access_token"]
+                    else:
+                        password = getpass.getpass()
             else:
                 # prompt for password
                 password = getpass.getpass()
-        
+
         self.username = username
         self.cert = None
         self.verify = verify
@@ -131,7 +135,7 @@ class Client(object):
         self.quotas_server = quotas_service
         self.storage_client = None
         self.collab_source_folder = "source_code"  # remote folder into which code may be uploaded
-        
+
         # if a token has been given, no need to authenticate
         if not self.token:
             self._hbp_auth(username, password)
@@ -362,7 +366,7 @@ class Client(object):
                 with open(source, "r") as fp:
                     job['code'] = fp.read()
             elif os.path.isdir(source):
-                remote_folder = self.upload_to_storage(source, 
+                remote_folder = self.upload_to_storage(source,
                                                        collab_id,
                                                        remote_folder=self.collab_source_folder,
                                                        overwrite=True)
@@ -377,10 +381,11 @@ class Client(object):
         if config is not None:
             job['hardware_config'] = config
         if tags is not None:
-            if isinstance(tags, list):
+            if isinstance(tags, (list, tuple)):
                 job["tags"] = tags
             else:
-                return "Job not submitted: 'tags' field should be a list."
+                raise ValueError("Job not submitted: 'tags' field should be a list.")
+        logger.debug("Submitting job: {}".format(job))
         job_id = self._post(self.job_server + self.resource_map["queue"], job)
         print("Job submitted")
         if wait:
@@ -583,7 +588,7 @@ class Client(object):
             :local_directory: path of the directory to be uploaded.
             :collab_id: the ID of the collab to whose storage the files will be uploaded.
             :remote_folder: relative path of the remote folder in which to put the uploaded files.
-            :overwrite: (default False) if True, overwrite files that already exist, 
+            :overwrite: (default False) if True, overwrite files that already exist,
                         otherwise raise a StorageException
             :include: list of wildcard patterns indicating which files should be uploaded.
                       By default, matches only Python files
@@ -591,13 +596,13 @@ class Client(object):
         *Returns*:
             the entity id of the remote folder
         """
-        
+
         if not self.storage_client:
             if have_collab_client:
                 self.storage_client = StorageClient.new(self.token)
             else:
                 raise ImportError("Please install the hbp_service_client package")
-        
+
         base_path = '/{}'.format(self.storage_client.api_client.list_projects(collab_id=collab_id)['results'][0]['name'])
 
         uploads = []
@@ -648,7 +653,7 @@ class Client(object):
             with open(".hbp_storage") as fp:
                 upload_cache = json.load(fp)
         last_upload_times = upload_cache.get(str(collab_id), {}).get(remote_folder, {})
-        
+
         for i, (local_path, remote_path, content_type) in enumerate(uploads, start=1):
             last_upload_time = last_upload_times.get(local_path, -1)
             last_modified_time = os.path.getmtime(local_path)
@@ -669,7 +674,7 @@ class Client(object):
             errmsg = "The following files were not uploaded as they already exist: \n  "
             errmsg += "\n  ".join(errors)
             raise StorageException(errmsg)
-        
+
         # save upload times
         with open(".hbp_storage", "w") as fp:
             json.dump(upload_cache, fp, indent=2)

@@ -1,6 +1,9 @@
 # This file contains the list of files that should be distributed in the PyPI package.
 README.md
+LICENCE.txt
+requirements.txt
 setup.py
 nmpi/__init__.py
 nmpi/nmpi_user.py
+nmpi/cli.py
 test/test_client.py

@@ -1,4 +1,4 @@
-requests==2.3.0
+requests>=2.20.0
 apache-libcloud==0.14.1
 pymongo==2.7.1
 colorama==0.3.1

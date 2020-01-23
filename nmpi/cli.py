@@ -39,7 +39,7 @@ def load_config():
     if not os.path.exists("nmpi_config.yml"):
         raise click.ClickException("There is no config file (nmpi_config.yml) in this directory")
     with open("nmpi_config.yml") as fp:
-        config = yaml.load(fp)
+        config = yaml.safe_load(fp)
     for required_field in ("username", "collab_id", "default_platform"):
         if required_field not in config:
             raise click.ClickException("{} must be defined in nmpi_config.yml".format(required_field))
@@ -49,10 +49,22 @@ def load_config():
 def read_incomplete_jobs():
     if os.path.exists(INCOMPLETE_JOBS_FILE):
         with open(INCOMPLETE_JOBS_FILE) as fp:
-            job_configs = yaml.load(fp) or []
+            job_configs = yaml.safe_load(fp) or []
         return job_configs
     else:
         return []
+
+
+def _url_from_env(server_env):
+    if server_env == "production":
+        job_service = "https://nmpi.hbpneuromorphic.eu/api/v2/"
+    elif server_env == "staging":
+        job_service = "https://nmpi-staging.hbpneuromorphic.eu/api/v2/"
+    elif server_env.startswith("https"):
+        job_service = server_env
+    else:
+        raise ValueError("--server-env option should be 'production', 'staging', or a valid server URL")
+    return job_service
 
 
 def write_incomplete_jobs(job_configs):
@@ -78,12 +90,13 @@ def cli(debug):
               help="Submit job then return immediately")
 @click.option("-o", "--output-dir",
               help="Output directory")
-def run(script, platform, batch, output_dir, tag):
+@click.option("-e", "--server-env", default="production")
+def run(script, platform, batch, output_dir, tag, server_env):
     """
     Run a simulation/emulation
     """
     config = load_config()
-    client = nmpi.Client(username=config["username"])
+    client = nmpi.Client(username=config["username"], job_service=_url_from_env(server_env))
 
     if os.path.exists(os.path.expanduser(script)):
         if os.path.isdir(script):
@@ -93,7 +106,7 @@ def run(script, platform, batch, output_dir, tag):
             source = os.path.dirname(script)
             if len(source) == 0:
                 source = "."
-            command = os.path.basename(script)
+            command = "{} {{system}}".format(os.path.basename(script))
     else:
         raise click.ClickException("Script '{}' does not exist".format(script))
 
@@ -119,15 +132,16 @@ def run(script, platform, batch, output_dir, tag):
         # todo: also write logs to file in output_dir
 
 
+@click.option("-e", "--server-env", default="production")
 @cli.command()
-def check():
+def check(server_env=None):
     """
     Check for completed jobs
     """
     # todo: add a "continuous" mode so that this can run as a background job
     #       this will require locking the incomplete jobs file - see https://filelock.readthedocs.io/
     config = load_config()
-    client = nmpi.Client(username=config["username"])
+    client = nmpi.Client(username=config["username"], job_service=_url_from_env(server_env))
 
     incomplete_jobs = read_incomplete_jobs()
     completed_jobs = []
@@ -143,9 +157,9 @@ def check():
         with open(os.path.join(job_config["output_dir"], "job_{}.log".format(job["id"])), 'w') as fp:
             fp.write(job["log"])
 
-        for job_config in completed_jobs:
-            incomplete_jobs.remove(job_config)
-        write_incomplete_jobs(incomplete_jobs)
+    for job_config in completed_jobs:
+        incomplete_jobs.remove(job_config)
+    write_incomplete_jobs(incomplete_jobs)
 
 
 if __name__ == "__main__":

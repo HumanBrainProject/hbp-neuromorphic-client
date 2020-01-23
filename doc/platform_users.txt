@@ -32,10 +32,10 @@ The experiment description must take the form of a Python script using the PyNN 
   * the file path of a single script located on your local machine
   * the URL of a public Git repository
   * the URL of a zip or tar.gz archive
-  
+
 In the latter two cases, the respository or archive must contain a top-level file named :file:`run.py`.
 **The script must accept a single command-line argument**, the name of the backend (e.g. "nest", "spinnaker"). Any other parameters or
-data files needed by the script should be provided as input files. 
+data files needed by the script should be provided as input files.
 
 Input data
 ----------
@@ -79,16 +79,16 @@ To interact with the Platform, you first create a :class:`Client` object, passin
 Retrieve your Collab ID
 =======================
 
-You must be part at least of one collab using the Neuromorphic Computing Platform Job Manager. 
+You must be part at least of one collab using the Neuromorphic Computing Platform Job Manager.
 Connect to the HBP Collaboratory to create a collab.
 
-Once you are part of a collab, you can create jobs. 
+Once you are part of a collab, you can create jobs.
 Before submitting jobs, you want to retrieve the collab id you want to submit your job within.
 
 
 .. code-block:: python
 
-    collab_ids = c.get_collabs()
+    collab_ids = c.my_collabs()
 
 
 Submitting a job
@@ -161,5 +161,3 @@ Retrieving the results of a job
 
 Error messages
 ==============
-
-

@@ -1,15 +1,32 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from distutils.core import setup
+from setuptools import setup
+
+requirements = [
+    'requests',
+    'click',
+    'pyyaml',
+    'hbp_service_client'
+]
+
+test_requirements = [
+    # TODO: put package test requirements here
+]
 
 long_description = open("README.md").read()
 
 setup(
     name="hbp_neuromorphic_platform",
-    version='0.7.2',
+    version='0.8.0dev',
     packages=['nmpi'],
-    install_requires=['requests',],
+    package_dir={'nmpi': 'nmpi'},
+    entry_points={
+        'console_scripts': [
+            'nmpi=nmpi.cli:cli'
+        ]
+    },
+    install_requires=requirements,
     author="Andrew P. Davison and Domenico Guarino",
     author_email="andrew.davison@unic.cnrs-gif.fr",
     description="Client software for the Human Brain Project Neuromorphic Computing Platform",

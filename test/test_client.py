@@ -88,9 +88,8 @@ class QueueInteractionTest(unittest.TestCase):
         job1 = member_client.get_job(job1_id)
         self.assertEqual(set(job1["tags"]), set(["tag1", "tag2"]))
         # submit tags not as a list
-        response = member_client.submit_job(source=simple_test_script,
-                                            platform=TEST_SYSTEM, collab_id=TEST_COLLAB, tags=1234)
-        self.assertEqual(response, "Job not submitted: 'tags' field should be a list.")
+        self.assertRaises(ValueError, member_client.submit_job, source=simple_test_script,
+                          platform=TEST_SYSTEM, collab_id=TEST_COLLAB, tags=1234)
 
     def test_queued_jobs_verbose(self):
         job_id = self._submit_job()

@@ -5,3 +5,4 @@ colorama==0.3.1
 radical.utils==0.7.3
 saga-python==0.15
 sh==1.09
+validators<=0.14.2  # for Python 2. Remove the limit when we drop Python 2.7 support.

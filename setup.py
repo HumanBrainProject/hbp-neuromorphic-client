@@ -7,7 +7,8 @@ requirements = [
     'requests',
     'click',
     'pyyaml',
-    'hbp_service_client'
+    'hbp_service_client',
+    'validators<=0.14.2'
 ]
 
 test_requirements = [
@@ -18,7 +19,7 @@ long_description = open("README.md").read()
 
 setup(
     name="hbp_neuromorphic_platform",
-    version='0.8.1',
+    version='0.8.2',
     packages=['nmpi'],
     package_dir={'nmpi': 'nmpi'},
     entry_points={

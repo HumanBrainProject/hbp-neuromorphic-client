@@ -52,8 +52,10 @@ except ImportError:
 mimetypes.init()
 logger = logging.getLogger("NMPI")
 
-IDENTITY_SERVICE = "https://services.humanbrainproject.eu/idm/v1/api"
-COLLAB_SERVICE = "https://services.humanbrainproject.eu/collab/v0"
+IDENTITY_SERVICE_V1 = "https://services.humanbrainproject.eu/idm/v1/api"
+IDENTITY_SERVICE_V2 = "https://iam.ebrains.eu/auth/realms/hbp/protocol/openid-connect"
+COLLAB_SERVICE_V1 = "https://services.humanbrainproject.eu/collab/v0"
+COLLAB_SERVICE_V2 = "https://wiki.ebrains.eu/rest/v1/"
 
 TOKENFILE = os.path.expanduser("~/.hbptoken")
 
@@ -234,16 +236,23 @@ class Client(object):
             raise Exception("Something went wrong. Status code {} from NMPI, expected 302".format(rNMPI1.status_code))
 
     def _get_user_info(self):
-        req = requests.get(IDENTITY_SERVICE + "/user/me",
+        req = requests.get(IDENTITY_SERVICE_V1 + "/user/me",
                            auth=self.auth)
         if req.ok:
             self.user_info = req.json()
-            if self.username:
-                assert self.user_info['username'] == self.username
-            else:
-                self.username = self.user_info['username']
         else:
-            self._handle_error(req)
+            req2 = requests.get(IDENTITY_SERVICE_V2 + "/userinfo",
+                                auth=self.auth)
+            if req2.ok:
+                self.user_info = req2.json()
+                self.user_info["id"] = self.user_info["sub"]
+                self.user_info["username"] = self.user_info.get("preferred_username", "unknown")
+            else:
+                self._handle_error(req)  # todo: need to somehow combine req and req2 here
+        if self.username:
+            assert self.user_info['username'] == self.username
+        else:
+            self.username = self.user_info['username']
 
     def _handle_error(self, request):
         """
@@ -686,7 +695,7 @@ class Client(object):
         Return a list of collabs of which the user is a member.
         """
         collabs = []
-        next = COLLAB_SERVICE + '/mycollabs'
+        next = COLLAB_SERVICE_V1 + '/mycollabs'
         while next:
             req = requests.get(next, auth=self.auth)
             if req.ok:
@@ -706,7 +715,7 @@ class Client(object):
         context = str(uuid.uuid4())
 
         # create a new nav item in the Collab
-        nav_resource = COLLAB_SERVICE + "/collab/{}/nav/".format(collab_id)
+        nav_resource = COLLAB_SERVICE_V1 + "/collab/{}/nav/".format(collab_id)
         nav_root = self._query(nav_resource + "root")['id']
         nav_item = {
             "app_id": "206",

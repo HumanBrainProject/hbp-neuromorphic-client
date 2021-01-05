@@ -245,7 +245,7 @@ class Client(object):
                                 auth=self.auth)
             if req2.ok:
                 self.user_info = req2.json()
-                self.user_info["id"] = self.user_info["sub"]
+                self.user_info["id"] = self.user_info.get("preferred_username", self.user_info["sub"])
                 self.user_info["username"] = self.user_info.get("preferred_username", "unknown")
             else:
                 self._handle_error(req)  # todo: need to somehow combine req and req2 here
@@ -737,7 +737,7 @@ class Client(object):
         new_project = {
             'context': context,
             'collab': collab_id,
-            'owner': self.user_info['username'],
+            'owner': self.user_info['id'],
             'title': title,
             'abstract': abstract,
             'description': description or ''

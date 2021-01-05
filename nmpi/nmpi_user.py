@@ -713,25 +713,31 @@ class Client(object):
         """
 
         context = str(uuid.uuid4())
+        try:
+            int(collab_id)
+            version = 1
+        except ValueError:
+            version = 2
 
-        # create a new nav item in the Collab
-        nav_resource = COLLAB_SERVICE_V1 + "/collab/{}/nav/".format(collab_id)
-        nav_root = self._query(nav_resource + "root")['id']
-        nav_item = {
-            "app_id": "206",
-            "context": context,
-            "name": "Resource request",
-            "order_index": "-1",
-            "parent": nav_root,
-            "type": "IT"
-        }
-        result = self._post(nav_resource, nav_item)
+        if version == 1:
+            # create a new nav item in the Collab
+            nav_resource = COLLAB_SERVICE_V1 + "/collab/{}/nav/".format(collab_id)
+            nav_root = self._query(nav_resource + "root")['id']
+            nav_item = {
+                "app_id": "206",
+                "context": context,
+                "name": "Resource request",
+                "order_index": "-1",
+                "parent": nav_root,
+                "type": "IT"
+            }
+            result = self._post(nav_resource, nav_item)
 
         # create the resource request
         new_project = {
             'context': context,
             'collab': collab_id,
-            'owner': self.user_info['id'],
+            'owner': self.user_info['username'],
             'title': title,
             'abstract': abstract,
             'description': description or ''

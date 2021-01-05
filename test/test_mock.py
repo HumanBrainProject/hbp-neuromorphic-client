@@ -69,7 +69,7 @@ class MockRequestsModule(object):
 
     def get(self, url, auth=None, cert=None, verify=True):
         response_map = {
-            nmpi_user.IDENTITY_SERVICE + "/user/me": MockResponse({"username": "testuser",
+            nmpi_user.IDENTITY_SERVICE_V1 + "/user/me": MockResponse({"username": "testuser",
                                                       "id": TESTUSERID}),
             ENTRYPOINT: MockResponse(SCHEMA),
             ENTRYPOINT + "/queue?id=42": MockResponse({"objects": [JOB42]}),
@@ -191,4 +191,3 @@ class UserClientTest(unittest.TestCase):
     def test_copy_data_to_storage(self):
         response = self.client.copy_data_to_storage(43, destination="collab")
         # todo: check the response
-

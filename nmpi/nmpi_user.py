@@ -4,7 +4,7 @@ Client for interacting with the Neuromorphic Computing Platform of the Human Bra
 Authors: Andrew P. Davison, Domenico Guarino, UNIC, CNRS
 
 
-Copyright 2016-2018 Andrew P. Davison and Domenico Guarino, Centre National de la Recherche Scientifique
+Copyright 2016-2020 Andrew P. Davison and Domenico Guarino, Centre National de la Recherche Scientifique
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -38,10 +38,14 @@ import mimetypes
 import requests
 from requests.auth import AuthBase
 try:
-    from jupyter_collab_storage import oauth_token_handler
+    from jupyter_collab_storage import oauth_token_handler  # v1
     have_collab_token_handler = True
 except ImportError:
-    have_collab_token_handler = False
+    try:
+        from clb_nb_utils import oauth as oauth_token_handler  # v2
+        have_collab_token_handler = True
+    except ImportError:
+        have_collab_token_handler = False
 try:
     from hbp_service_client.storage_service.client import Client as StorageClient
     from hbp_service_client.storage_service.exceptions import StorageException
@@ -153,8 +157,10 @@ class Client(object):
             else:
                 raise
 
-        with open(TOKENFILE, "w") as fp:
-            json.dump({username: {"access_token": self.token}}, fp)
+        if not have_collab_token_handler:
+            # no need to cache the token if running in the Collaboratory
+            with open(TOKENFILE, "w") as fp:
+                json.dump({username: {"access_token": self.token}}, fp)
 
         # get schema
         req = requests.get(job_service, cert=self.cert, verify=self.verify, auth=self.auth)
@@ -168,6 +174,7 @@ class Client(object):
     def _hbp_auth(self, username, password):
         """
         """
+        # todo: add support for v2
         redirect_uri = self.job_server + '/complete/hbp/'
 
         self.session = requests.Session()
@@ -605,7 +612,7 @@ class Client(object):
         *Returns*:
             the entity id of the remote folder
         """
-
+        # todo: add support for Drive
         if not self.storage_client:
             if have_collab_client:
                 self.storage_client = StorageClient.new(self.token)
@@ -694,18 +701,22 @@ class Client(object):
         """
         Return a list of collabs of which the user is a member.
         """
-        collabs = []
-        next = COLLAB_SERVICE_V1 + '/mycollabs'
-        while next:
-            req = requests.get(next, auth=self.auth)
-            if req.ok:
-                data = req.json()
-                next = data["next"]
-                collabs.extend(data["results"])
-            else:
-                self._handle_error(req)
-        return dict((c["title"], c)
-                    for c in collabs if not c["deleted"])
+        if "roles" in self.user_info:
+            return self.user_info["roles"]["team"]
+            # todo: retrieve more information, like Collab names
+        else:
+            collabs = []
+            next = COLLAB_SERVICE_V1 + '/mycollabs'
+            while next:
+                req = requests.get(next, auth=self.auth)
+                if req.ok:
+                    data = req.json()
+                    next = data["next"]
+                    collabs.extend(data["results"])
+                else:
+                    self._handle_error(req)
+            return dict((c["title"], c)
+                        for c in collabs if not c["deleted"])
 
     def create_resource_request(self, title, collab_id, abstract, description=None, submit=False):
         """

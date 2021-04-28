@@ -22,8 +22,12 @@ All the personalization should happen in the config file.
 import os
 from os import path
 import logging
-from urlparse import urlparse
-from urllib import urlretrieve
+try:
+    from urlparse import urlparse
+    from urllib import urlretrieve
+except ImportError:  # Py3
+    from urllib.parse import urlparse
+    from urllib.request import urlretrieve
 import shutil
 from datetime import datetime
 import time

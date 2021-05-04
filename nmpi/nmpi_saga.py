@@ -31,7 +31,7 @@ except ImportError:  # Py3
 import shutil
 from datetime import datetime
 import time
-import saga
+import radical.saga as saga
 import sh
 from sh import git, unzip, tar, curl
 import nmpi

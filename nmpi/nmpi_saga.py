@@ -202,7 +202,7 @@ class HardwareClient(nmpi.Client):
                                  {"content": "reset status to 'submitted'\n"})
         return self._put(self.job_server + job["resource_uri"], job)
 
-    def kill_job(self, job):
+    def kill_job(self, job, error_message=""):
         """
         Set the status of a queued or running job to "error".
 
@@ -215,6 +215,7 @@ class HardwareClient(nmpi.Client):
         log = job.pop("log", "")
         response = self._put(self.job_server + job["resource_uri"], job)
         log += "Internal error. Please resubmit the job\n"
+        log += error_message
         log_response = self._put(self.job_server + "/api/v2/log/{}".format(job["id"]),
                                  {"content": log})
         return response

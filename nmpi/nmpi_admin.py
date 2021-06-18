@@ -26,6 +26,7 @@ import nmpi
 
 TEST_QUOTAS = {
     "BrainScaleS": {"limit": 0.1, "units": "wafer-hours"},
+    "BrainScaleS-2": {"limit": 1.0, "units": "chip-hours"},
     "SpiNNaker": {"limit": 5000, "units": "core-hours"},
     "BrainScaleS-ESS": {"limit": 10, "units": "hours"},
     "Spikey": {"limit": 10, "units": "hours"}

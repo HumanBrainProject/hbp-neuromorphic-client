@@ -10,7 +10,9 @@ except ImportError:
 
 SPINNAKER = "SpiNNaker"
 BRAINSCALES = "BrainScaleS"
+BRAINSCALES1 = "BrainScaleS"
+BRAINSCALES2 = "BrainScaleS-2"
 ESS = "BrainScaleS-ESS"
 SPIKEY = "Spikey"
 
-__version__ = "0.9.0"
+__version__ = "0.9.1"

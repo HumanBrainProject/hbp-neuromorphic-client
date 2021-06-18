@@ -346,7 +346,7 @@ class Client(object):
                 containing Python code, or a local directory containing
                 Python code.
             :platform: the neuromorphic hardware system to be used.
-                Either "BrainScaleS" or "SpiNNaker".
+                One of: "BrainScaleS", "BrainScaleS-2", "SpiNNaker", "Spikey".
             :collab_id: the ID of the collab to which the job belongs
             :config: (optional) a dictionary containing configuration information
                 for the hardware platform. See the Platform Guidebook for

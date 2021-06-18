@@ -83,7 +83,7 @@ def cli(debug):
 @cli.command()
 @click.argument("script")
 @click.option("-p", "--platform",
-              help="SpiNNaker, BrainScaleS or Spikey")
+              help="SpiNNaker, BrainScaleS, BrainScaleS-2, or Spikey")
 @click.option("-t", "--tag", multiple=True,
               help="Add a tag to the job")
 @click.option("-b", "--batch", is_flag=True,

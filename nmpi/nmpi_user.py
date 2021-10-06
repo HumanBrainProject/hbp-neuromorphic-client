@@ -1,10 +1,10 @@
 """
 Client for interacting with the Neuromorphic Computing Platform of the Human Brain Project.
 
-Authors: Andrew P. Davison, Domenico Guarino, UNIC, CNRS
+Authors: Andrew P. Davison, Domenico Guarino, NeuroPSI, CNRS
 
 
-Copyright 2016-2020 Andrew P. Davison and Domenico Guarino, Centre National de la Recherche Scientifique
+Copyright 2016-2021 Andrew P. Davison and Domenico Guarino, Centre National de la Recherche Scientifique
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,40 +26,26 @@ import getpass
 import logging
 import uuid
 import time
-try:
-    from urlparse import urlparse
-    from urllib import urlretrieve, urlencode
-except ImportError:  # Py3
-    from urllib.parse import urlparse, urlencode
-    from urllib.request import urlretrieve
+from urllib.parse import urlparse, urlencode
+from urllib.request import urlretrieve
 import errno
 import fnmatch
 import mimetypes
 import requests
 from requests.auth import AuthBase
 try:
-    from jupyter_collab_storage import oauth_token_handler  # v1
+    from clb_nb_utils import oauth as oauth_token_handler  # v2
     have_collab_token_handler = True
 except ImportError:
-    try:
-        from clb_nb_utils import oauth as oauth_token_handler  # v2
-        have_collab_token_handler = True
-    except ImportError:
-        have_collab_token_handler = False
-try:
-    from hbp_service_client.storage_service.client import Client as StorageClient
-    from hbp_service_client.storage_service.exceptions import StorageException
-    have_collab_client = True
-except ImportError:
-    have_collab_client = False
+    have_collab_token_handler = False
+
+have_collab_client = False
 
 mimetypes.init()
 logger = logging.getLogger("NMPI")
 
-IDENTITY_SERVICE_V1 = "https://services.humanbrainproject.eu/idm/v1/api"
-IDENTITY_SERVICE_V2 = "https://iam.ebrains.eu/auth/realms/hbp/protocol/openid-connect"
-COLLAB_SERVICE_V1 = "https://services.humanbrainproject.eu/collab/v0"
-COLLAB_SERVICE_V2 = "https://wiki.ebrains.eu/rest/v1/"
+IDENTITY_SERVICE = "https://iam.ebrains.eu/auth/realms/hbp/protocol/openid-connect"
+COLLAB_SERVICE = "https://wiki.ebrains.eu/rest/v1/"
 
 TOKENFILE = os.path.expanduser("~/.hbptoken")
 
@@ -243,19 +229,14 @@ class Client(object):
             raise Exception("Something went wrong. Status code {} from NMPI, expected 302".format(rNMPI1.status_code))
 
     def _get_user_info(self):
-        req = requests.get(IDENTITY_SERVICE_V1 + "/user/me",
+        req = requests.get(IDENTITY_SERVICE + "/userinfo",
                            auth=self.auth)
         if req.ok:
             self.user_info = req.json()
+            self.user_info["id"] = self.user_info.get("preferred_username", self.user_info["sub"])
+            self.user_info["username"] = self.user_info.get("preferred_username", "unknown")
         else:
-            req2 = requests.get(IDENTITY_SERVICE_V2 + "/userinfo",
-                                auth=self.auth)
-            if req2.ok:
-                self.user_info = req2.json()
-                self.user_info["id"] = self.user_info.get("preferred_username", self.user_info["sub"])
-                self.user_info["username"] = self.user_info.get("preferred_username", "unknown")
-            else:
-                self._handle_error(req)  # todo: need to somehow combine req and req2 here
+            self._handle_error(req)
         if self.username:
             assert self.user_info['username'] == self.username
         else:
@@ -705,18 +686,7 @@ class Client(object):
             return self.user_info["roles"]["team"]
             # todo: retrieve more information, like Collab names
         else:
-            collabs = []
-            next = COLLAB_SERVICE_V1 + '/mycollabs'
-            while next:
-                req = requests.get(next, auth=self.auth)
-                if req.ok:
-                    data = req.json()
-                    next = data["next"]
-                    collabs.extend(data["results"])
-                else:
-                    self._handle_error(req)
-            return dict((c["title"], c)
-                        for c in collabs if not c["deleted"])
+            return []
 
     def create_resource_request(self, title, collab_id, abstract, description=None, submit=False):
         """
@@ -724,25 +694,6 @@ class Client(object):
         """
 
         context = str(uuid.uuid4())
-        try:
-            int(collab_id)
-            version = 1
-        except ValueError:
-            version = 2
-
-        if version == 1:
-            # create a new nav item in the Collab
-            nav_resource = COLLAB_SERVICE_V1 + "/collab/{}/nav/".format(collab_id)
-            nav_root = self._query(nav_resource + "root")['id']
-            nav_item = {
-                "app_id": "206",
-                "context": context,
-                "name": "Resource request",
-                "order_index": "-1",
-                "parent": nav_root,
-                "type": "IT"
-            }
-            result = self._post(nav_resource, nav_item)
 
         # create the resource request
         new_project = {

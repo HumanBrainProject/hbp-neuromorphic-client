@@ -19,7 +19,7 @@ long_description = open("README.md").read()
 
 setup(
     name="hbp_neuromorphic_platform",
-    version='0.9.1',
+    version='0.9.2',
     packages=['nmpi'],
     package_dir={'nmpi': 'nmpi'},
     entry_points={
@@ -29,7 +29,7 @@ setup(
     },
     install_requires=requirements,
     author="Andrew P. Davison and Domenico Guarino",
-    author_email="andrew.davison@unic.cnrs-gif.fr",
+    author_email="andrew.davison@cnrs.fr",
     description="Client software for the Human Brain Project Neuromorphic Computing Platform",
     long_description=long_description,
     license="License :: OSI Approved :: Apache Software License",

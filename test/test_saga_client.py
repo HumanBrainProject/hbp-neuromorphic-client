@@ -11,7 +11,7 @@ from zipfile import ZipFile
 import tarfile
 from datetime import datetime
 
-import saga
+import radical.saga as saga
 
 from nmpi import nmpi_saga, nmpi_user
 

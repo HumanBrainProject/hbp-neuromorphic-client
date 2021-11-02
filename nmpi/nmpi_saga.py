@@ -22,12 +22,16 @@ All the personalization should happen in the config file.
 import os
 from os import path
 import logging
-from urlparse import urlparse
-from urllib import urlretrieve
+try:
+    from urlparse import urlparse
+    from urllib import urlretrieve
+except ImportError:  # Py3
+    from urllib.parse import urlparse
+    from urllib.request import urlretrieve
 import shutil
 from datetime import datetime
 import time
-import saga
+import radical.saga as saga
 import sh
 from sh import git, unzip, tar, curl
 import nmpi
@@ -198,7 +202,7 @@ class HardwareClient(nmpi.Client):
                                  {"content": "reset status to 'submitted'\n"})
         return self._put(self.job_server + job["resource_uri"], job)
 
-    def kill_job(self, job):
+    def kill_job(self, job, error_message=""):
         """
         Set the status of a queued or running job to "error".
 
@@ -211,6 +215,7 @@ class HardwareClient(nmpi.Client):
         log = job.pop("log", "")
         response = self._put(self.job_server + job["resource_uri"], job)
         log += "Internal error. Please resubmit the job\n"
+        log += error_message
         log_response = self._put(self.job_server + "/api/v2/log/{}".format(job["id"]),
                                  {"content": log})
         return response

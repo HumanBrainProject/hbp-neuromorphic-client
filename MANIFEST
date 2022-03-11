@@ -1,4 +1,5 @@
 # This file contains the list of files that should be distributed in the PyPI package.
+# The PyPI package does not contain the HardwareClient or AdminClient.
 README.md
 LICENCE.txt
 requirements.txt

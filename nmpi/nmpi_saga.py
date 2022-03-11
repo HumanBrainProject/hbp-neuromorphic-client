@@ -142,7 +142,7 @@ class NMPAuth(AuthBase):
 
 class HardwareClient(nmpi.Client):
     """
-    Client for interacting from a specific hardware, with the Neuromorphic Computing Platform of the Human Brain Project.
+    Client for interacting from a specific hardware, with the EBRAINS Neuromorphic Computing Platform.
 
     This includes submitting jobs, tracking job status, retrieving the results of completed jobs,
     and creating and administering projects.

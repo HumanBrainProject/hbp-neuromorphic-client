@@ -1,9 +1,10 @@
-==============================================================================
-Documentation of the Python client for the HBP Neuromorphic Computing Platform
-==============================================================================
+==================================================================================
+Documentation of the Python client for the EBRAINS Neuromorphic Computing Platform
+==================================================================================
 
-The Neuromorphic Computing Platform of the `Human Brain Project`_ contains two very different neuromorphic hardware
-systems - BrainScaleS (aka "physical model") and SpiNNaker (aka "many core") - but has a single interface.
+The Neuromorphic Computing Platform of the EBRAINS_ infrastructure (developed by the `Human Brain Project`_)
+contains two very different neuromorphic hardware systems - BrainScaleS (aka "physical model") 
+and SpiNNaker (aka "many core") - but has a single interface.
 
 Jobs are submitted to a queue server, then executed on one of the neuromorphic systems. On job completion, the user
 may retrieve the results of the simulation/emulation.
@@ -19,5 +20,5 @@ queue, and by the hardware systems to take jobs off the queue and to post the re
    platform_users
    platform_developers
 
-
+.. _EBRAINS: https://ebrains.eu
 .. _`Human Brain Project`: http://www.humanbrainproject.eu

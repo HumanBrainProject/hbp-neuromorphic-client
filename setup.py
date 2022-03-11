@@ -7,8 +7,7 @@ requirements = [
     'requests',
     'click',
     'pyyaml',
-    'hbp_service_client',
-    'validators<=0.14.2'
+    'validators'
 ]
 
 test_requirements = [
@@ -19,7 +18,7 @@ long_description = open("README.md").read()
 
 setup(
     name="hbp_neuromorphic_platform",
-    version='0.9.2',
+    version='0.10.0.dev',
     packages=['nmpi'],
     package_dir={'nmpi': 'nmpi'},
     entry_points={
@@ -30,7 +29,7 @@ setup(
     install_requires=requirements,
     author="Andrew P. Davison and Domenico Guarino",
     author_email="andrew.davison@cnrs.fr",
-    description="Client software for the Human Brain Project Neuromorphic Computing Platform",
+    description="Client software for the EBRAINS Neuromorphic Computing Platform",
     long_description=long_description,
     license="License :: OSI Approved :: Apache Software License",
     url='http://www.humanbrainproject.eu',
@@ -40,12 +39,10 @@ setup(
         'License :: Other/Proprietary License',
         'Natural Language :: English',
         'Operating System :: OS Independent',
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.5',
-        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.8',
         'Topic :: Scientific/Engineering']
 )

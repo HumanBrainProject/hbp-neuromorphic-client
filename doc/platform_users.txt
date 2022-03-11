@@ -6,7 +6,8 @@ For platform users
 Installing the Python client
 ============================
 
-We strongly recommend you use virtualenv or Anaconda. The client works with Python 2.7 and Python 3.3 or newer.
+We strongly recommend you use virtualenv or Anaconda. The client is tested with Python 3.7 or newer,
+but may work with older versions of Python 3.
 
 ::
 
@@ -16,7 +17,7 @@ We strongly recommend you use virtualenv or Anaconda. The client works with Pyth
 Format of a job
 ===============
 
-A job for the HBP Neuromorphic Computing Platform consists of:
+A job for the EBRAINS Neuromorphic Computing Platform consists of:
 
   * an experiment description
   * input data
@@ -80,7 +81,7 @@ Retrieve your Collab ID
 =======================
 
 You must be part at least of one collab using the Neuromorphic Computing Platform Job Manager.
-Connect to the HBP Collaboratory to create a collab.
+Connect to the EBRAINS Collaboratory to create a collab.
 
 Once you are part of a collab, you can create jobs.
 Before submitting jobs, you want to retrieve the collab id you want to submit your job within.
@@ -98,7 +99,7 @@ Simplest example: a single line job, no input data or parameter files.
 
 .. code-block:: python
 
-    job_id = c.submit_job(source="import pyNN", platform="localhost", collab_id="316")
+    job_id = c.submit_job(source="import pyNN", platform="localhost", collab_id="my-collab")
 
 
 Another simple example: a single file on your local machine, no input data or parameter files.
@@ -107,7 +108,7 @@ Another simple example: a single file on your local machine, no input data or pa
 
     job_id = c.submit_job(source="/Users/andrew/dev/pyNN_0.7/examples/IF_cond_exp.py",
                           platform="BrainScaleS",
-                          collab_id="316")
+                          collab_id="my-collab")
 
 
 A more complex example: the experiment and model description are contained in a Git repository. The input to the
@@ -117,7 +118,7 @@ network is an image file taken from the internet.
 
     job_id = c.submit_job(source="https://github.com/apdavison/nmpi_test",
                           platform="SpiNNaker",
-                          collab_id="316",
+                          collab_id="my-collab",
                           inputs=["http://aloi.science.uva.nl/www-images/90/90.jpg"])
 
 
@@ -161,3 +162,5 @@ Retrieving the results of a job
 
 Error messages
 ==============
+
+[This section not yet written]

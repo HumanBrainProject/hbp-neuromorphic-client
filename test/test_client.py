@@ -3,7 +3,7 @@ Tests of the client using the production Job Queue service
 
 (change the entrypoint to test against development or staging services).
 
-Network access and a valid HBP Identity account are needed.
+Network access and a valid EBRAINS account are needed.
 
 """
 
@@ -19,7 +19,7 @@ TEST_USER = os.environ['NMPI_TEST_USER']
 TEST_PWD = os.environ['NMPI_TEST_PWD']
 TEST_USER_NONMEMBER = os.environ['NMPI_TEST_USER_NONMEMBER']
 TEST_PWD_NONMEMBER = os.environ['NMPI_TEST_PWD_NONMEMBER']
-TEST_COLLAB = 563
+TEST_COLLAB = "neuromorphic-testing-private"
 VERIFY = True
 
 simple_test_script = r"""

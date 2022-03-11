@@ -4,7 +4,7 @@ Client for interacting with the Neuromorphic Computing Platform of the Human Bra
 Authors: Andrew P. Davison, Domenico Guarino, NeuroPSI, CNRS
 
 
-Copyright 2016-2021 Andrew P. Davison and Domenico Guarino, Centre National de la Recherche Scientifique
+Copyright 2016-2022 Andrew P. Davison and Domenico Guarino, Centre National de la Recherche Scientifique
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ from urllib.parse import urlparse, urlencode
 from urllib.request import urlretrieve
 import errno
 import fnmatch
-import mimetypes
+import re
 import requests
 from requests.auth import AuthBase
 try:
@@ -38,17 +38,18 @@ try:
     have_collab_token_handler = True
 except ImportError:
     have_collab_token_handler = False
+try:
+    from ebrains_drive.client import DriveApiClient
+    from ebrains_drive.exceptions import DoesNotExist
+    have_drive_client = True
+except ImportError:
+    have_drive_client = False
 
-have_collab_client = False
-
-mimetypes.init()
 logger = logging.getLogger("NMPI")
 
 IDENTITY_SERVICE = "https://iam.ebrains.eu/auth/realms/hbp/protocol/openid-connect"
-COLLAB_SERVICE = "https://wiki.ebrains.eu/rest/v1/"
-
 TOKENFILE = os.path.expanduser("~/.hbptoken")
-
+UPLOAD_TIMESTAMPS = ".ebrains_drive_uploads"
 
 class HBPAuth(AuthBase):
     """Attaches OIDC Bearer Authentication to the given Request object."""
@@ -63,28 +64,17 @@ class HBPAuth(AuthBase):
         return r
 
 
-def _mkdir_p(path):
-    # not needed in Python >= 3.2, use os.makedirs(path, exist_ok=True)
-    try:
-        os.makedirs(path)
-    except OSError as exc:
-        if exc.errno == errno.EEXIST and os.path.isdir(path):
-            pass
-        else:
-            raise
-
-
 class Client(object):
     """
-    Client for interacting with the Neuromorphic Computing Platform of
-    the Human Brain Project.
+    Client for interacting with the EBRAINS Neuromorphic Computing Platform,
+    developed by the Human Brain Project.
 
     This includes submitting jobs, tracking job status and retrieving the
     results of completed jobs.
 
     *Arguments*:
         :username, password: credentials for accessing the platform.
-            Not needed in Jupyter notebooks within the HBP Collaboratory.
+            Not needed in Jupyter notebooks within the EBRAINS Collaboratory.
         :job_service: the base URL of the platform Job Service.
             Generally the default value should be used.
         :quotas_service: the base URL of the platform Quotas Service.
@@ -99,6 +89,7 @@ class Client(object):
                  password=None,
                  job_service="https://nmpi.hbpneuromorphic.eu/api/v2/",
                  quotas_service="https://quotas.hbpneuromorphic.eu",
+                 authorization_endpoint="https://validation-v2.brainsimulation.eu",
                  token=None,
                  verify=True):
         if password is None and token is None:
@@ -127,6 +118,7 @@ class Client(object):
         self.quotas_server = quotas_service
         self.storage_client = None
         self.collab_source_folder = "source_code"  # remote folder into which code may be uploaded
+        self.authorization_endpoint = authorization_endpoint
 
         # if a token has been given, no need to authenticate
         if not self.token:
@@ -159,74 +151,49 @@ class Client(object):
 
     def _hbp_auth(self, username, password):
         """
+        EBRAINS authentication
         """
-        # todo: add support for v2
-        redirect_uri = self.job_server + '/complete/hbp/'
-
-        self.session = requests.Session()
-        # 1. login button on NMPI
-        rNMPI1 = self.session.get(self.job_server + "/login/hbp/?next=/config.json",
-                                  allow_redirects=False, verify=self.verify)
-        # 2. receives a redirect
-        if rNMPI1.status_code == 302:
-            # Get its new destination (location)
-            url = rNMPI1.headers.get('location')
-            # https://services.humanbrainproject.eu/oidc/authorize?
-            #   scope=openid%20profile
-            #   state=jQLERcgK1xTDHcxezNYnbmLlXhHgJmsg
-            #   redirect_uri=https://neuromorphic.humanbrainproject.eu/complete/hbp-oauth2/
-            #   response_type=code
-            #   client_id=nmpi
-            # get the exchange cookie
-            cookie = rNMPI1.headers.get('set-cookie').split(";")[0]
-            self.session.headers.update({'cookie': cookie})
-            # 3. request to the provided url at HBP
-            rHBP1 = self.session.get(url, allow_redirects=False, verify=self.verify)
-            # 4. receives a redirect to HBP login page
-            if rHBP1.status_code == 302:
-                # Get its new destination (location)
-                url = rHBP1.headers.get('location')
-                cookie = rHBP1.headers.get('set-cookie').split(";")[0]
-                self.session.headers.update({'cookie': cookie})
-                # 5. request to the provided url at HBP
-                rHBP2 = self.session.get(url, allow_redirects=False, verify=self.verify)
-                # 6. HBP responds with the auth form
-                if rHBP2.text:
-                    # 7. Request to the auth service url
-                    formdata = {
-                        'j_username': username,
-                        'j_password': password,
-                        'submit': 'Login',
-                        'redirect_uri': redirect_uri + '&response_type=code&client_id=nmpi'
-                    }
-                    headers = {'accept': 'application/json'}
-                    rNMPI2 = self.session.post("https://services.humanbrainproject.eu/oidc/j_spring_security_check",
-                                               data=formdata,
-                                               allow_redirects=True,
-                                               verify=self.verify,
-                                               headers=headers)
-                    # check good communication
-                    if rNMPI2.status_code == requests.codes.ok:
-                        # check success address
-                        if rNMPI2.url == self.job_server + '/config.json':
-                            # print rNMPI2.text
-                            res = rNMPI2.json()
-                            self.token = res['auth']['token']['access_token']
-                            self.config = res
-                        # unauthorized
-                        else:
-                            if 'error' in rNMPI2.url:
-                                raise Exception("Authentication Failure: No token retrieved." + rNMPI2.url)
-                            else:
-                                raise Exception("Unhandled error in Authentication." + rNMPI2.url)
-                    else:
-                        raise Exception("Communication error. Status code {} from HBP, expected 200".format(rNMPI2.status_code))
-                else:
-                    raise Exception("Something went wrong. No text.")
-            else:
-                raise Exception("Something went wrong. Status code {} from HBP, expected 302".format(rHBP1.status_code))
-        else:
-            raise Exception("Something went wrong. Status code {} from NMPI, expected 302".format(rNMPI1.status_code))
+        redirect_uri = self.authorization_endpoint + '/auth'
+        session = requests.Session()
+        # we are temporarily using the Model Validation Service to obtain a token,
+        # until the new version of the Neuromorphic Job Queue API is deployed.
+        # log-in page of model validation service
+        r_login = session.get(self.authorization_endpoint + "/login", allow_redirects=False)
+        if r_login.status_code != 302:
+            raise Exception(
+                "Something went wrong. Status code {} from login, expected 302"
+                .format(r_login.status_code))
+        # redirects to EBRAINS IAM log-in page
+        iam_auth_url = r_login.headers.get('location')
+        r_iam1 = session.get(iam_auth_url, allow_redirects=False)
+        if r_iam1.status_code != 200:
+            raise Exception(
+                "Something went wrong loading EBRAINS log-in page. Status code {}"
+                .format(r_iam1.status_code))
+        # fill-in and submit form
+        match = re.search(r'action=\"(?P<url>[^\"]+)\"', r_iam1.text)
+        if not match:
+            raise Exception("Received an unexpected page")
+        iam_authenticate_url = match['url'].replace("&amp;", "&")
+        r_iam2 = session.post(
+            iam_authenticate_url,
+            data={"username": username, "password": password},
+            headers={"Referer": iam_auth_url, "Host": "iam.ebrains.eu", "Origin": "https://iam.ebrains.eu"},
+            allow_redirects=False
+        )
+        if r_iam2.status_code != 302:
+            raise Exception(
+                "Something went wrong. Status code {} from authenticate, expected 302"
+                .format(r_iam2.status_code))
+        # redirects back to model validation service
+        r_val = session.get(r_iam2.headers['Location'])
+        if r_val.status_code != 200:
+            raise Exception(
+                "Something went wrong. Status code {} from final authentication step"
+                .format(r_val.status_code))
+        config = r_val.json()
+        self.token = config['token']['access_token']
+        self.config = config
 
     def _get_user_info(self):
         req = requests.get(IDENTITY_SERVICE + "/userinfo",
@@ -540,16 +507,16 @@ class Client(object):
                     url = "file://" + url
                 local_path = os.path.join(local_dir, "job_{}".format(job["id"]), relative_path)
                 dir = os.path.dirname(local_path)
-                _mkdir_p(dir)
+                os.makedirs(dir, exist_ok=True)
                 urlretrieve(url, local_path)
                 filenames.append(local_path)
 
         return filenames
 
-    def copy_data_to_storage(self, job_id, destination="collab"):
+    def copy_data_to_storage(self, job_id, destination="drive"):
         """
-        Copy the data produced by the job with id `job_id` to Collaboratory
-        storage or to the HPAC Platform. Note that copying data to an HPAC
+        Copy the data produced by the job with id `job_id` to the EBRAINS 
+        Drive or to the HPAC Platform. Note that copying data to an HPAC
         site requires that you have an account for that site.
 
         *Example*:
@@ -558,9 +525,9 @@ class Client(object):
 
             client.copy_data_to_storage(90712, "JURECA")
 
-        To copy data to Collab storage::
+        To copy data to the EBRAINS Drive::
 
-            client.copy_data_to_storage(90712, "collab")
+            client.copy_data_to_storage(90712, "drive")
 
         """
         return self._query(self.job_server + "/copydata/{}/{}".format(destination, job_id))
@@ -576,7 +543,7 @@ class Client(object):
     def upload_to_storage(self, local_directory, collab_id, remote_folder="",
                           overwrite=False, include=["*.py"]):
         """
-        Upload the contents of a local directory to Collab storage.
+        Upload the contents of a local directory to the EBRAINS Drive.
 
         This ignores hidden directories (names starting with ".") and only
         uploads files whose names match the patterns in the `include` argument.
@@ -593,17 +560,14 @@ class Client(object):
         *Returns*:
             the entity id of the remote folder
         """
-        # todo: add support for Drive
         if not self.storage_client:
-            if have_collab_client:
-                self.storage_client = StorageClient.new(self.token)
+            if have_drive_client:
+                self.storage_client = DriveApiClient(token=self.token)
             else:
-                raise ImportError("Please install the hbp_service_client package")
-
-        base_path = '/{}'.format(self.storage_client.api_client.list_projects(collab_id=collab_id)['results'][0]['name'])
+                raise ImportError("Please install the ebrains_drive package")
 
         uploads = []
-        remote_dirs = set()
+        remote_dir_names = set()
         for dirpath, dirnames, filenames in os.walk(local_directory):
             # don't enter hidden directories
             for dirname in dirnames:
@@ -619,25 +583,23 @@ class Client(object):
             if matches:
                 for filename in matches:
                     local_path = os.path.join(dirpath, filename)
-                    remote_dir = os.path.join(base_path, remote_folder, relative_dir).rstrip("/")  # trailing slash not allowed by mkdir
-                    remote_dirs.add(remote_dir)
+                    remote_dir = os.path.join("/", remote_folder, relative_dir).rstrip("/")
+                    remote_dir_names.add(remote_dir)
                     remote_path = os.path.join(remote_dir, filename)
-                    content_type = mimetypes.guess_type(local_path, strict=False)[0]
-                    uploads.append((local_path, remote_path, content_type))
+                    uploads.append((local_path, remote_dir, filename))
 
         # Create remote directories as needed
-        for remote_path in sorted(remote_dirs, key=lambda x: len(x)):
+        remote_repo = self.storage_client.repos.get_repo_by_url(collab_id)
+        remote_dir_objs = {
+            "/": remote_repo.get_dir("/")
+        }
+        for remote_path in sorted(remote_dir_names, key=lambda x: len(x)):
             # sort to ensure we create parents before children.
-            # todo: keep track of directories that already exist to avoid
-            #       trying to create them more than once
-            path_parts = remote_path.split("/")
-            for i in range(3, len(path_parts) + 1):
-                rpath = "/".join(path_parts[:i])
-                try:
-                    self.storage_client.mkdir(rpath)
-                except StorageException as err:
-                    if "already exists" not in err.args[0]:
-                        raise
+            try:
+                remote_dir_objs[remote_path] = remote_repo.get_dir(remote_path)
+            except DoesNotExist:
+                parent_dir = remote_dir_objs[os.path.dirname(remote_path)]
+                remote_dir_objs[remote_path] = parent_dir.mkdir(os.path.basename(remote_path))
 
         # Upload files
         # Keeps track of last modified times for uploaded files
@@ -646,37 +608,35 @@ class Client(object):
         errors = []
 
         upload_cache = {str(collab_id): {remote_folder: {}}}
-        if os.path.exists(".hbp_storage"):  # check for record of previous uploads
-            with open(".hbp_storage") as fp:
+        if os.path.exists(UPLOAD_TIMESTAMPS):  # check for record of previous uploads
+            with open(UPLOAD_TIMESTAMPS) as fp:
                 upload_cache = json.load(fp)
         last_upload_times = upload_cache.get(str(collab_id), {}).get(remote_folder, {})
 
-        for i, (local_path, remote_path, content_type) in enumerate(uploads, start=1):
+        for i, (local_path, remote_dir, filename) in enumerate(uploads, start=1):
             last_upload_time = last_upload_times.get(local_path, -1)
             last_modified_time = os.path.getmtime(local_path)
             if last_modified_time > last_upload_time:
-                print("[Uploading {} / {}] {} --> {}".format(i, n, local_path, remote_path))
+                print("[Uploading {} / {}] {} --> {}".format(i, n, local_path, remote_dir))
+                remote_dir_obj = remote_dir_objs[remote_dir]
                 try:
-                    self.storage_client.upload_file(local_path, remote_path, content_type)
-                except StorageException as err:
-                    if overwrite:
-                        self.storage_client.delete(remote_path)
-                        self.storage_client.upload_file(local_path, remote_path, content_type)
-                    else:
-                        errors.append(remote_path)
-                upload_cache[str(collab_id)][remote_folder][local_path] = int(time.time())
+                    remote_dir_obj.upload_local_file(local_path, filename, overwrite=overwrite)
+                except FileExistsError:
+                    errors.append(f"{local_path} --> {remote_path}")
+                else:
+                    upload_cache[str(collab_id)][remote_folder][local_path] = int(time.time())
             else:
                 print("Not uploading {}, file unchanged".format(local_path))
         if errors:
             errmsg = "The following files were not uploaded as they already exist: \n  "
             errmsg += "\n  ".join(errors)
-            raise StorageException(errmsg)
+            raise FileExistsError(errmsg)
 
         # save upload times
-        with open(".hbp_storage", "w") as fp:
+        with open(UPLOAD_TIMESTAMPS, "w") as fp:
             json.dump(upload_cache, fp, indent=2)
 
-        return self.storage_client.api_client.get_entity_by_query(path=os.path.join(base_path, remote_folder))
+        return remote_dir_objs[os.path.join("/", remote_folder)]
 
     def my_collabs(self):
         """

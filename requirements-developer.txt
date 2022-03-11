@@ -1,0 +1,8 @@
+requests>=2.20.0
+apache-libcloud==0.14.1
+pymongo==2.7.1
+colorama==0.3.1
+radical.utils==0.7.3
+radical.saga
+sh==1.09
+validators<=0.14.2  # for Python 2. Remove the limit when we drop Python 2.7 support.

@@ -11,11 +11,8 @@ Installation
 
 Clone the Git repository::
 
-    $ git clone https://bitbucket.org/apdavison/nmpi.git
+    $ git clone https://github.com/HumanBrainProject/hbp-neuromorphic-client
 
-This is a private repository which only allows a limited number of users. I suggest having one user for Heidelberg and
-one for Manchester (send your Bitbucket username to Andrew Davison). If this is insufficient, we can move the Git
-repository elsewhere.
 
 Install the requirements and the Python package. We strongly recommend using virtualenv or Anaconda.
 
@@ -31,7 +28,7 @@ This installs the `nmpi` Python package and puts an executable script, :file:`nm
 Configuration
 =============
 
-The script :file:`nmpi_run.py` uses the nmpi python client to the api to retrieve the next nmpi job from the queue, it reads the content of the job, creates a folder for it. From the job description, it tries to treat it as a git repository. If it does not work it creates an executable file. Additionally, it retrieves eventual input data.
+The script :file:`nmpi_run.py` uses the nmpi Python client to the api to retrieve the next nmpi job from the queue, it reads the content of the job, creates a folder for it. From the job description, it tries to treat it as a git repository. If it does not work it creates an executable file. Additionally, it retrieves eventual input data.
 
 Then the script performs the simulation in a protected environment. It submits the job to an underlying job queueing system and waits for the answer, and updates the log and status of the job. 
 
@@ -54,7 +51,7 @@ The address of the remote NMPI job server is then specified:
 .. code-block:: python
 
     # NPI addresses
-    NMPI_HOST=http://157.136.240.232
+    NMPI_HOST=https://nmpi.hbpneuromorphic.eu
     NMPI_API=/api/v2/
 
 and the identifier for your platform:
@@ -62,7 +59,7 @@ and the identifier for your platform:
 .. code-block:: python
 
     # Identifier for your platform (e.g. "BrainScaleS")
-    PLATFORM_NAME=clusteru
+    PLATFORM_NAME=my_platform
 
 together with local directories used for storing the code during execution and for the results:
 

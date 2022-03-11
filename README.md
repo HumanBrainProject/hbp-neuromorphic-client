@@ -1,8 +1,9 @@
-# Client software for the Human Brain Project Neuromorphic Computing Platform
+# Client software for the EBRAINS Neuromorphic Computing Platform, developed by the Human Brain Project
 
 
 For documentation, see https://electronicvisions.github.io/hbp-sp9-guidebook/
 
+For more information about EBRAINS, see https://ebrains.eu/
 For more information about the Human Brain Project, see https://www.humanbrainproject.eu/
 
 

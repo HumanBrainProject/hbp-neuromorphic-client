@@ -334,7 +334,7 @@ class Client(object):
                                                        collab_id,
                                                        remote_folder=self.collab_source_folder,
                                                        overwrite=True)
-                job['code'] = remote_folder["uuid"]
+                job['code'] = remote_folder.path
                 job['selected_tab'] = "upload_script"
                 job['command'] = self.collab_source_folder + "/" + job["command"]
         else:

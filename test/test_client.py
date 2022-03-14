@@ -13,7 +13,7 @@ import unittest
 from nmpi import nmpi_user
 
 
-ENTRYPOINT = "https://nmpi.hbpneuromorphic.eu/api/v2/"
+ENTRYPOINT = "https://nmpi-staging.hbpneuromorphic.eu/api/v2/"
 TEST_SYSTEM = "nosetest_platform"
 TEST_USER = os.environ['NMPI_TEST_USER']
 TEST_PWD = os.environ['NMPI_TEST_PWD']

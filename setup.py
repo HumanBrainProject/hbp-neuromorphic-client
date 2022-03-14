@@ -6,8 +6,7 @@ from setuptools import setup
 requirements = [
     'requests',
     'click',
-    'pyyaml',
-    'validators'
+    'pyyaml'
 ]
 
 test_requirements = [
@@ -18,7 +17,7 @@ long_description = open("README.md").read()
 
 setup(
     name="hbp_neuromorphic_platform",
-    version='0.10.0.dev',
+    version='0.10.0',
     packages=['nmpi'],
     package_dir={'nmpi': 'nmpi'},
     entry_points={

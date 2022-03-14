@@ -1,0 +1,5 @@
+# This file contains the list of files that should be excluded from the PyPI package.
+# The PyPI package does not contain the HardwareClient or AdminClient.
+exclude nmpi/nmpi_saga.py
+exclude nmpi/nmpi_admin.py
+exclude test/test_saga_client.py

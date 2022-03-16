@@ -611,6 +611,10 @@ class Client(object):
         if os.path.exists(UPLOAD_TIMESTAMPS):  # check for record of previous uploads
             with open(UPLOAD_TIMESTAMPS) as fp:
                 upload_cache = json.load(fp)
+        if str(collab_id) not in upload_cache:
+            upload_cache[str(collab_id)] = {remote_folder: {}}
+        elif remote_folder not in upload_cache[str(collab_id)]:
+            upload_cache[str(collab_id)][remote_folder] = {}
         last_upload_times = upload_cache.get(str(collab_id), {}).get(remote_folder, {})
 
         for i, (local_path, remote_dir, filename) in enumerate(uploads, start=1):

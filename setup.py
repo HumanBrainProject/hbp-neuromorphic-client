@@ -17,7 +17,7 @@ long_description = open("README.md").read()
 
 setup(
     name="hbp_neuromorphic_platform",
-    version='0.10.0',
+    version='0.10.1',
     packages=['nmpi'],
     package_dir={'nmpi': 'nmpi'},
     entry_points={

@@ -47,7 +47,6 @@ except ImportError:
 
 logger = logging.getLogger("NMPI")
 
-IDENTITY_SERVICE = "https://iam.ebrains.eu/auth/realms/hbp/protocol/openid-connect"
 TOKENFILE = os.path.expanduser("~/.hbptoken")
 UPLOAD_TIMESTAMPS = ".ebrains_drive_uploads"
 
@@ -90,6 +89,7 @@ class Client(object):
                  job_service="https://nmpi.hbpneuromorphic.eu/api/v2/",
                  quotas_service="https://quotas.hbpneuromorphic.eu",
                  authorization_endpoint="https://validation-v2.brainsimulation.eu",
+                 user_info_endpoint="https://iam.ebrains.eu/auth/realms/hbp/protocol/openid-connect/userinfo",
                  token=None,
                  verify=True):
         if password is None and token is None:
@@ -196,7 +196,7 @@ class Client(object):
         self.config = config
 
     def _get_user_info(self):
-        req = requests.get(IDENTITY_SERVICE + "/userinfo",
+        req = requests.get(self.user_info_endpoint,
                            auth=self.auth)
         if req.ok:
             self.user_info = req.json()

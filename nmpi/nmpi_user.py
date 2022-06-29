@@ -119,6 +119,7 @@ class Client(object):
         self.storage_client = None
         self.collab_source_folder = "source_code"  # remote folder into which code may be uploaded
         self.authorization_endpoint = authorization_endpoint
+        self.user_info_endpoint = user_info_endpoint
 
         # if a token has been given, no need to authenticate
         if not self.token:

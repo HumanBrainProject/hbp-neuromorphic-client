@@ -30,8 +30,9 @@ import nmpi
 
 INCOMPLETE_JOBS_FILE = ".incomplete_jobs.yml"
 
-logging.basicConfig(filename='nmpi.log', level=logging.WARNING,
-                    format='%(asctime)s %(levelname)s %(message)s')
+logging.basicConfig(
+    filename="nmpi.log", level=logging.WARNING, format="%(asctime)s %(levelname)s %(message)s"
+)
 logger = logging.getLogger("NMPI")
 logger.setLevel(logging.INFO)
 
@@ -43,7 +44,9 @@ def load_config():
         config = yaml.safe_load(fp)
     for required_field in ("username", "collab_id", "default_platform"):
         if required_field not in config:
-            raise click.ClickException("{} must be defined in nmpi_config.yml".format(required_field))
+            raise click.ClickException(
+                "{} must be defined in nmpi_config.yml".format(required_field)
+            )
     return config
 
 
@@ -64,12 +67,14 @@ def _url_from_env(server_env):
     elif server_env.startswith("https"):
         job_service = server_env
     else:
-        raise ValueError("--server-env option should be 'production', 'staging', or a valid server URL")
+        raise ValueError(
+            "--server-env option should be 'production', 'staging', or a valid server URL"
+        )
     return job_service
 
 
 def write_incomplete_jobs(job_configs):
-    with open(INCOMPLETE_JOBS_FILE, 'w') as fp:
+    with open(INCOMPLETE_JOBS_FILE, "w") as fp:
         yaml.dump(job_configs, fp)
 
 
@@ -83,14 +88,10 @@ def cli(debug):
 
 @cli.command()
 @click.argument("script")
-@click.option("-p", "--platform",
-              help="SpiNNaker, BrainScaleS, BrainScaleS-2, or Spikey")
-@click.option("-t", "--tag", multiple=True,
-              help="Add a tag to the job")
-@click.option("-b", "--batch", is_flag=True,
-              help="Submit job then return immediately")
-@click.option("-o", "--output-dir",
-              help="Output directory")
+@click.option("-p", "--platform", help="SpiNNaker, BrainScaleS, BrainScaleS-2, or Spikey")
+@click.option("-t", "--tag", multiple=True, help="Add a tag to the job")
+@click.option("-b", "--batch", is_flag=True, help="Submit job then return immediately")
+@click.option("-o", "--output-dir", help="Output directory")
 @click.option("-e", "--server-env", default="production")
 def run(script, platform, batch, output_dir, tag, server_env):
     """
@@ -111,24 +112,26 @@ def run(script, platform, batch, output_dir, tag, server_env):
     else:
         raise click.ClickException("Script '{}' does not exist".format(script))
 
-    job = client.submit_job(source,
-                            platform=platform or config["default_platform"],
-                            collab_id=config["collab_id"],
-                            config=config.get("hardware_config", None),
-                            inputs=None,
-                            command=command,
-                            tags=tag,
-                            wait=not batch)
+    job = client.submit_job(
+        source,
+        platform=platform or config["default_platform"],
+        collab_id=config["collab_id"],
+        config=config.get("hardware_config", None),
+        inputs=None,
+        command=command,
+        tags=tag,
+        wait=not batch,
+    )
 
     output_dir = output_dir or config.get("default_output_dir", ".")
     if batch:
         # save job_id for later checking
         write_incomplete_jobs(read_incomplete_jobs() + [{"job_id": job, "output_dir": output_dir}])
     else:
-        if job["status"] == 'finished':
+        if job["status"] == "finished":
             client.download_data(job, local_dir=output_dir)
         else:
-            assert job["status"] == 'error'
+            assert job["status"] == "error"
         click.echo(job["log"])
         # todo: also write logs to file in output_dir
 
@@ -155,7 +158,9 @@ def check(server_env=None):
         elif job["status"] == "error":
             completed_jobs.append(job_config)
             click.echo("Job #{} errored".format(job["id"]))
-        with open(os.path.join(job_config["output_dir"], "job_{}.log".format(job["id"])), 'w') as fp:
+        with open(
+            os.path.join(job_config["output_dir"], "job_{}.log".format(job["id"])), "w"
+        ) as fp:
             fp.write(job["log"])
 
     for job_config in completed_jobs:

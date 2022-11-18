@@ -29,7 +29,7 @@ TEST_QUOTAS = {
     "BrainScaleS-2": {"limit": 1.0, "units": "chip-hours"},
     "SpiNNaker": {"limit": 5000, "units": "core-hours"},
     "BrainScaleS-ESS": {"limit": 10, "units": "hours"},
-    "Spikey": {"limit": 10, "units": "hours"}
+    "Spikey": {"limit": 10, "units": "hours"},
 }
 
 
@@ -57,31 +57,28 @@ class AdminClient(nmpi.Client):
         projects = self._query(self.quotas_server + "/projects/")
         # server-side filtering not yet supported, so we filter client side
         if collab_id is not None:
-            projects = [p for p in projects if p['collab'] == str(collab_id)]
+            projects = [p for p in projects if p["collab"] == str(collab_id)]
         if status is not None:
-            projects = [p for p in projects if p['status'] == status]
+            projects = [p for p in projects if p["status"] == status]
         return projects
 
     def accept_resource_request(self, request_uri, with_quotas=False):
         """
         Accept a resource (compute-time) allocation request.
         """
-        response = self._put(self.quotas_server + request_uri,
-                             {"status": "accepted"})
+        response = self._put(self.quotas_server + request_uri, {"status": "accepted"})
         if with_quotas:
             for platform, values in with_quotas.items():
-                self.add_quota(request_uri,
-                               platform=platform,
-                               limit=values["limit"],
-                               units=values["units"])
+                self.add_quota(
+                    request_uri, platform=platform, limit=values["limit"], units=values["units"]
+                )
         return response
 
     def reject_resource_request(self, request_uri):
         """
         Reject a resource (compute-time) allocation request.
         """
-        response = self._put(self.quotas_server + request_uri,
-                             {"status": "rejected"})
+        response = self._put(self.quotas_server + request_uri, {"status": "rejected"})
         return response
 
     def add_quota(self, request_uri, platform, limit, units=None):
@@ -99,8 +96,7 @@ class AdminClient(nmpi.Client):
             "limit": limit,
             "usage": 0.0,
             "platform": platform,
-            "project" : project_id
+            "project": project_id,
         }
-        response = self._post(self.quotas_server + request_uri + "/quotas/",
-                              quota)
+        response = self._post(self.quotas_server + request_uri + "/quotas/", quota)
         return response

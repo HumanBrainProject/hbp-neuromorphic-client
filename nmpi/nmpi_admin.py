@@ -21,6 +21,7 @@ limitations under the License.
 
 """
 
+import urllib
 import nmpi
 
 
@@ -49,24 +50,36 @@ class AdminClient(nmpi.Client):
             `collab_id`: filter list by collab id (default: all collabs)
             `status`: filter list by request status (default: all statuses)
 
-
         Possible values for `status` are 'in preparation', 'under review',
         'accepted', 'rejected'.
 
         """
-        projects = self._query(self.quotas_server + "/projects/")
-        # server-side filtering not yet supported, so we filter client side
-        if collab_id is not None:
-            projects = [p for p in projects if p["collab"] == str(collab_id)]
-        if status is not None:
-            projects = [p for p in projects if p["status"] == status]
-        return projects
+        query_args = {"as_admin": True, "size": 100000}
+        if collab_id:
+            query_args["collab"] = collab_id
+        if status:
+            query_args["status"] = status
+
+        url = f"{self.quotas_server}/projects/?{urllib.parse.urlencode(query_args)}"
+        return self._query(url)
+
+    def get_resource_request(self, request_id):
+        """
+        Retrieve a resource request by id
+        """
+        if request_id.startswith("/projects"):
+            request_path = request_id
+        else:
+            request_path = f"/projects/{request_id}"
+        return self._query(self.quotas_server + request_path + "?as_admin=true")
 
     def accept_resource_request(self, request_uri, with_quotas=False):
         """
         Accept a resource (compute-time) allocation request.
         """
-        response = self._put(self.quotas_server + request_uri, {"status": "accepted"})
+        response = self._put(
+            f"{self.quotas_server}{request_uri}?as_admin=true", {"status": "accepted"}
+        )
         if with_quotas:
             for platform, values in with_quotas.items():
                 self.add_quota(
@@ -78,7 +91,9 @@ class AdminClient(nmpi.Client):
         """
         Reject a resource (compute-time) allocation request.
         """
-        response = self._put(self.quotas_server + request_uri, {"status": "rejected"})
+        response = self._put(
+            f"{self.quotas_server}{request_uri}?as_admin=true", {"status": "rejected"}
+        )
         return response
 
     def add_quota(self, request_uri, platform, limit, units=None):
@@ -90,13 +105,6 @@ class AdminClient(nmpi.Client):
                 units = TEST_QUOTAS[platform]["units"]
             else:
                 raise ValueError("Must specify units")
-        project_id = request_uri.split("/")[-1]
-        quota = {
-            "units": units,
-            "limit": limit,
-            "usage": 0.0,
-            "platform": platform,
-            "project": project_id,
-        }
+        quota = {"units": units, "limit": limit, "platform": platform}
         response = self._post(self.quotas_server + request_uri + "/quotas/", quota)
         return response

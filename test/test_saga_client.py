@@ -25,7 +25,7 @@ TEST_PWD = os.environ["NMPI_TEST_PWD"]
 HARDWARE_TOKEN = os.environ["NMPI_TESTING_APIKEY"]
 TEST_COLLAB = "neuromorphic-testing-private"
 TEST_PLATFORM = "Test"
-VIRTUAL_ENV = "/usr/local/bin/python3"
+VIRTUAL_ENV = "/usr/local"
 # VIRTUAL_ENV = "/Users/adavison/dev/simulation/env"
 
 

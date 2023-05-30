@@ -240,7 +240,7 @@ class CodeRetrievalTest(unittest.TestCase):
         job = MockSagaJob("submitted", working_directory=self.tmp_run_dir)
         mock_nmpi_job = {"code": "file://{}".format(zipfile)}
         job_runner._get_code(mock_nmpi_job, job)
-        self.assertEqual(os.listdir(self.tmp_run_dir), ["run.py", "testcode.zip"])
+        self.assertEqual(sorted(os.listdir(self.tmp_run_dir)), ["run.py", "testcode.zip"])
         with open(os.path.join(self.tmp_run_dir, "run.py")) as fp:
             self.assertEqual(fp.read(), simulation_test_script)
 
@@ -264,6 +264,6 @@ class CodeRetrievalTest(unittest.TestCase):
         job = MockSagaJob("submitted", working_directory=self.tmp_run_dir)
         mock_nmpi_job = {"code": "file://{}".format(archive)}
         job_runner._get_code(mock_nmpi_job, job)
-        self.assertEqual(os.listdir(self.tmp_run_dir), ["run.py", "testcode.tar.gz"])
+        self.assertEqual(sorted(os.listdir(self.tmp_run_dir)), ["run.py", "testcode.tar.gz"])
         with open(os.path.join(self.tmp_run_dir, "run.py")) as fp:
             self.assertEqual(fp.read(), simulation_test_script)

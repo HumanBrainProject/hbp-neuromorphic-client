@@ -25,7 +25,8 @@ TEST_PWD = os.environ["NMPI_TEST_PWD"]
 HARDWARE_TOKEN = os.environ["NMPI_TESTING_APIKEY"]
 TEST_COLLAB = "neuromorphic-testing-private"
 TEST_PLATFORM = "Test"
-VIRTUAL_ENV = "/Users/adavison/dev/simulation/env"
+VIRTUAL_ENV = "/usr/local/bin/python3"
+# VIRTUAL_ENV = "/Users/adavison/dev/simulation/env"
 
 
 simple_test_script = r"""
@@ -99,7 +100,7 @@ class JobRunnerTest(unittest.TestCase):
         job_desc = saga.job.Description()
         job_desc.working_directory = tmpdir
         job_desc.executable = os.path.join(VIRTUAL_ENV, "bin", "python")
-        job_desc.arguments = [os.path.join(tmpdir, "run.py"), "nest"]
+        job_desc.arguments = [os.path.join(tmpdir, "run.py"), "mock"]
         job_desc.output = "saga_test.out"
         job_desc.error = "saga_test.err"
 
@@ -182,7 +183,7 @@ class FullStackTest(unittest.TestCase):
                 WORKING_DIRECTORY=self.tmpdir,
                 JOB_EXECUTABLE_PYNN_11=os.path.join(VIRTUAL_ENV, "bin", "python"),
                 DATA_DIRECTORY=self.tmpdir,
-                DEFAULT_PYNN_BACKEND="nest",
+                DEFAULT_PYNN_BACKEND="mock",
                 DATA_SERVER_IDENTIFIER="TestRepository",
                 DATA_SERVER="http://example.com/",
             )

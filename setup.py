@@ -17,7 +17,6 @@ long_description = open("README.md").read()
 
 setup(
     name="hbp_neuromorphic_platform",
-    version='0.10.1',
     packages=['nmpi'],
     package_dir={'nmpi': 'nmpi'},
     entry_points={
@@ -25,6 +24,7 @@ setup(
             'nmpi=nmpi.cli:cli'
         ]
     },
+    version="0.11.0.beta.1",
     install_requires=requirements,
     author="Andrew P. Davison and Domenico Guarino",
     author_email="andrew.davison@cnrs.fr",

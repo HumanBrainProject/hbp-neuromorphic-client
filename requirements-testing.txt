@@ -3,3 +3,4 @@ pytest-cov
 pytest-asyncio
 pytest-mock
 flake8
+PyNN

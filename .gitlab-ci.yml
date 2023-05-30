@@ -1,0 +1,17 @@
+stages:
+  - test
+
+test_staging:
+  stage: test
+  only:
+    variables:
+      - $CI_COMMIT_BRANCH == "api-v3"
+  script:
+    - python3 -m pip install -r requirements.txt
+    - python3 -m pip install -r requirements-provider.txt
+    - python3 -m pip install -r requirements-testing.txt
+    - cd api
+    - python3 -m pytest -v --cov=nmpi --cov-report=term
+  tags:
+    - docker-runner
+  image: docker-registry.ebrains.eu/neuromorphic/python:3.10-slim

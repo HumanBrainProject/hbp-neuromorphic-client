@@ -40,6 +40,15 @@ class AdminClient(nmpi.Client):
     the Human Brain Project, with additional methods only available to administrators.
     """
 
+    def remove_job(self, job_id):
+        """
+        Remove a job from the interface.
+
+        The job is hidden rather than being permanently deleted.
+        """
+        job_uri = self._get_job_uri(job_id)
+        self._delete(job_uri + "?as_admin=true")
+
     def resource_requests(self, collab_id=None, status=None):
         """
         Return a list of compute-time resource requests.

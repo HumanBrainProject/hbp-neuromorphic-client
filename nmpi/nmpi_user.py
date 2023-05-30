@@ -52,6 +52,7 @@ logger = logging.getLogger("NMPI")
 
 TOKENFILE = os.path.expanduser("~/.hbptoken")
 UPLOAD_TIMESTAMPS = ".ebrains_drive_uploads"
+REPOSITORY_MAP = {"drive": "EBRAINS Drive", "bucket": "EBRAINS Bucket"}
 
 
 class EBRAINSAuth(AuthBase):
@@ -215,6 +216,9 @@ class Client(object):
         else:
             self.username = self.user_info["username"]
 
+    def get_server_info(self):
+        return self._query(self.job_server)
+
     def _handle_error(self, request):
         """
         Deal with requests that return an error code (404, 500, etc.)
@@ -230,13 +234,16 @@ class Client(object):
         logger.error(errmsg)
         raise Exception("Error %s: %s" % (request.status_code, errmsg))
 
-    def _query(self, resource_uri, verbose=False, ignore404=False):
+    def _query(self, resource_uri, verbose=True, ignore404=False):
         """
         Retrieve a resource or list of resources.
         """
         req = requests.get(resource_uri, auth=self.auth, cert=self.cert, verify=self.verify)
         if req.ok:
-            return req.json()
+            if verbose:
+                return req.json()
+            else:
+                return [item["resource_uri"] for item in req.json()]
         elif ignore404 and req.status_code == 404:
             return None
         else:
@@ -256,8 +263,6 @@ class Client(object):
         )
         if not req.ok:
             self._handle_error(req)
-        if "Location" in req.headers:
-            return req.headers["Location"]
         else:
             return req.json()
 
@@ -341,7 +346,7 @@ class Client(object):
             named according to the property `client.collab_source_folder`
             (default: "source_code")
         """
-        job = {"command": command, "hardware_platform": platform, "collab_id": collab_id}
+        job = {"command": command, "hardware_platform": platform, "collab": collab_id}
 
         source = os.path.expanduser(source)
         if os.path.exists(source):
@@ -367,7 +372,8 @@ class Client(object):
             else:
                 raise ValueError("Job not submitted: 'tags' field should be a list.")
         logger.debug("Submitting job: {}".format(job))
-        job_id = self._post(f"{self.job_server}/jobs/", job)
+        submitted_job = self._post(f"{self.job_server}/jobs/", job)
+        job_id = submitted_job["resource_uri"]
         print("Job submitted")
         if wait:
             time.sleep(self.sleep_interval)
@@ -399,6 +405,7 @@ class Client(object):
 
         result = self._post(f"{job_uri}/comments/", comment)
         print("Comment submitted")
+        assert isinstance(result, dict)
         return result
 
     def add_tags(self, job_id, tags):
@@ -434,24 +441,6 @@ class Client(object):
         if job is None:
             raise Exception(f"No such job: {job_id}")  # todo: define custom Exceptions
         return job
-
-    def remove_completed_job(self, job_id):
-        """
-        Remove a job from the interface.
-
-        The job is hidden rather than being permanently deleted.
-        """
-        raise NotImplementedError("temporarily unavailable")
-        job_uri = self._get_job_uri(job_id)
-        self._delete(job_uri)
-
-    def remove_queued_job(self, job_id):
-        """
-        Remove a job from the interface.
-
-        The job is hidden rather than being permanently deleted.
-        """
-        self.remove_completed_job(job_id)
 
     def queued_jobs(self, verbose=False):
         """
@@ -516,9 +505,8 @@ class Client(object):
             client.copy_data_to_storage(90712, "bucket")
 
         """
-        repository_map = {"drive": "EBRAINS Drive", "bucket": "EBRAINS Bucket"}
         try:
-            repo_name = repository_map[destination]
+            repo_name = REPOSITORY_MAP[destination]
         except KeyError:
             raise ValueError("Invalid destination")
 
@@ -721,7 +709,7 @@ class Client(object):
         """
         Return a list of quotas for running jobs on the Neuromorphic Platform
         """
-        resource_requests = self.list_resource_requests(collab_id, status="accepted")
+        resource_requests = self.resource_requests(collab_id, status="accepted")
         quotas = []
         for rr in resource_requests:
             quotas.extend(rr["quotas"])

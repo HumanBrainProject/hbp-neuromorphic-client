@@ -7,18 +7,20 @@ Network access and a valid EBRAINS account are needed.
 
 """
 
+import sys
 import os.path
 import pytest
 
+sys.path.append(".")
 from nmpi import nmpi_user
 
 
 ENTRYPOINT = "https://nmpi-v3-staging.hbpneuromorphic.eu/"
-TEST_SYSTEM = "TestPlatform"
+TEST_SYSTEM = "Test"
 TEST_USER = os.environ["NMPI_TEST_USER"]
 TEST_PWD = os.environ["NMPI_TEST_PWD"]
-#TEST_USER_NONMEMBER = os.environ["NMPI_TEST_USER_NONMEMBER"]
-#TEST_PWD_NONMEMBER = os.environ["NMPI_TEST_PWD_NONMEMBER"]
+# TEST_USER_NONMEMBER = os.environ["NMPI_TEST_USER_NONMEMBER"]
+# TEST_PWD_NONMEMBER = os.environ["NMPI_TEST_PWD_NONMEMBER"]
 TEST_COLLAB = "neuromorphic-testing-private"
 VERIFY = True
 
@@ -30,7 +32,7 @@ timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 with open(timestamp + ".txt", 'w') as fp:
   fp.write(timestamp + " 42\n")
 
-print "done"
+print("done")
 """
 
 simulation_test_script = r"""
@@ -39,12 +41,12 @@ exec("import pyNN.%s as sim" % sys.argv[1])
 
 sim.setup()
 
-p = sim.Population(2, sim.IF_cond_exp, {'i_offset': 0.1})
-p.record_v()
+p = sim.Population(2, sim.IF_cond_exp(i_offset=0.1))
+p.record("v")
 
 sim.run(100.0)
 
-p.print_v("simulation_data.v")
+p.write_data("simulation_data.pkl")
 
 sim.end()
 """
@@ -71,12 +73,15 @@ def submitted_job_id(member_client):
     # admin_client.delete_job(job_id)  # todo
 
 
-class QueueInteractionTest:
-    def test_submit_job(self, submitted_job):
-        self.assertEqual(submitted_job_id[:6], "/jobs/")
+class TestQueueInteraction:
+    def test_submit_job(self, submitted_job_id):
+        assert submitted_job_id[:6] == "/jobs/"
 
     def test_submit_job_without_compute_time_allocation(self, member_client):
-        with pytest.raises(Exception, match="You do not have a compute time allocation for the not_a_platform platform")
+        with pytest.raises(
+            Exception,
+            match="You do not have sufficient compute quota to submit this job",
+        ):
             member_client.submit_job(
                 source=simple_test_script, platform="not_a_platform", collab_id=TEST_COLLAB
             )
@@ -94,13 +99,13 @@ class QueueInteractionTest:
         # submit tags not as a list
         with pytest.raises(ValueError):
             member_client.submit_job(
-            source=simple_test_script,
-            platform=TEST_SYSTEM,
-            collab_id=TEST_COLLAB,
-            tags=1234,
-        )
+                source=simple_test_script,
+                platform=TEST_SYSTEM,
+                collab_id=TEST_COLLAB,
+                tags=1234,
+            )
 
-    def test_queued_jobs_verbose(self, submitted_job_id):
+    def test_queued_jobs_verbose(self, submitted_job_id, member_client):
         jobs = member_client.queued_jobs(verbose=True)
         for job in jobs:
             # jobs should all belong to the current user
@@ -110,34 +115,37 @@ class QueueInteractionTest:
         job_uris = [job["resource_uri"] for job in jobs]
         assert submitted_job_id in job_uris
 
-    def test_queued_jobs_terse(self, submitted_job_id):
+    def test_queued_jobs_terse(self, submitted_job_id, member_client):
         new_job = submitted_job_id
         job_uris = member_client.queued_jobs(verbose=False)
         for job_uri in job_uris:
             assert job_uri[:6] == "/jobs/"
         assert new_job in job_uris
 
-    def test_submit_comment_to_completed_job(self):
+    def test_submit_comment_to_completed_job(self, member_client):
         job_uri = member_client.completed_jobs(TEST_COLLAB)[0]
-        comment_uri = member_client.submit_comment(job_uri, "test comment")
+        comment = member_client.submit_comment(job_uri, "test comment")
+        comment_uri = comment["resource_uri"]
+        assert isinstance(comment_uri, str)
         job = member_client.get_job(job_uri)
         found = False
         for comment in job["comments"]:
             if comment["resource_uri"] == comment_uri:
                 found = True
                 assert comment["content"] == "test comment"
+                break
         if not found:
             pytest.fail()
 
-    def test_submit_comment_to_queued_job(self):
+    def test_submit_comment_to_queued_job(self, member_client):
         job_uri = member_client.queued_jobs()[0]
         response = member_client.submit_comment(job_uri, "test comment")
-        self.assertEqual(
-            response,
-            "Comment not submitted: job id must belong to a completed job (with status finished or error).",
+        assert response == (
+            "Comment not submitted: job id must belong to a completed job"
+            " (with status finished or error)."
         )
 
-    def test_job_status(self, submitted_job_id):
+    def test_job_status(self, submitted_job_id, member_client):
         job_uri = submitted_job_id
         response = member_client.job_status(job_uri)
         assert response == "submitted"
@@ -145,12 +153,12 @@ class QueueInteractionTest:
         response = member_client.job_status(job_id_int)
         assert response == "submitted"
 
-    def test_get_job(self, submitted_job_id):
+    def test_get_job(self, submitted_job_id, member_client):
         job_uri = submitted_job_id
         job = member_client.get_job(job_uri)
         assert job["resource_uri"] == job_uri
         assert job["code"] == simple_test_script
-        assert job["collab_id"] == TEST_COLLAB
+        assert job["collab"] == TEST_COLLAB
         assert job["hardware_platform"] == TEST_SYSTEM
         assert job["status"] == "submitted"
 
@@ -170,7 +178,7 @@ class QueueInteractionTest:
 #    def test_download_data(self):
 
 
-# class QueueInteractionAsNonMemberTest:
+# class TestQueueInteractionAsNonMember:
 #     """Tests with a user who is not a member of the test collab."""
 
 #     def _submit_job(self):

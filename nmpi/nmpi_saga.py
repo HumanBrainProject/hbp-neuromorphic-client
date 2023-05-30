@@ -20,29 +20,24 @@ All the personalization should happen in the config file.
 """
 
 import os
-from os import path
-import logging
 
-try:
-    from urlparse import urlparse
-    from urllib import urlretrieve
-except ImportError:  # Py3
-    from urllib.parse import urlparse
-    from urllib.request import urlretrieve
+from urllib.parse import urlparse
 import shutil
 from datetime import datetime
 import time
+import mimetypes
+import hashlib
 import radical.saga as saga
+import logging
 import sh
 from sh import git, unzip, tar, curl
 import nmpi
 import codecs
-import requests
 from requests.auth import AuthBase
 
 
 DEFAULT_SCRIPT_NAME = "run.py {system}"
-DEFAULT_PYNN_VERSION = "0.7"
+DEFAULT_PYNN_VERSION = "0.11"
 MAX_LOG_SIZE = 10000
 
 logger = logging.getLogger("NMPI")
@@ -51,7 +46,7 @@ logger = logging.getLogger("NMPI")
 # status functions
 def job_pending(nmpi_job, saga_job):
     nmpi_job["status"] = "submitted"
-    log = nmpi_job.pop("log", str())
+    log = nmpi_job.pop("log", "") or ""
     log += "Job ID: {}\n".format(saga_job.id)
     log += "{}    pending\n".format(datetime.now().isoformat())
     nmpi_job["log"] = log
@@ -60,7 +55,7 @@ def job_pending(nmpi_job, saga_job):
 
 def job_running(nmpi_job, saga_job):
     nmpi_job["status"] = "running"
-    log = nmpi_job.pop("log", str())
+    log = nmpi_job.pop("log", "") or ""
     log += "{}    running\n".format(datetime.now().isoformat())
     nmpi_job["log"] = log
     return nmpi_job
@@ -80,9 +75,9 @@ def job_done(nmpi_job, saga_job):
     nmpi_job["status"] = "finished"
     timestamp = datetime.now().isoformat()
     nmpi_job["timestamp_completion"] = timestamp
-    nmpi_job["resource_usage"] = 1.0  # todo: report the actual usage
+    nmpi_job["resource_usage"] = {"value": 1.0, "units": "litres"}  # todo: report the actual usage
     nmpi_job["provenance"] = {}  # todo: report provenance information
-    log = nmpi_job.pop("log", str())
+    log = nmpi_job.pop("log", "") or ""
     log += "{}    finished\n".format(datetime.now().isoformat())
     stdout, stderr = read_output(saga_job)
     log += "\n\n"
@@ -95,7 +90,7 @@ def job_done(nmpi_job, saga_job):
 
 def job_failed(nmpi_job, saga_job):
     nmpi_job["status"] = "error"
-    log = nmpi_job.pop("log", str())
+    log = nmpi_job.pop("log", "") or ""
     log += "{}    failed\n\n".format(datetime.now().isoformat())
     stdout, stderr = read_output(saga_job)
     log += _truncate(stderr)
@@ -129,23 +124,35 @@ def load_config(fullpath):
     return conf
 
 
+def sha1sum(filename):
+    BUFFER_SIZE = 128 * 1024
+    h = hashlib.sha1()
+    with open(filename, "rb") as fp:
+        while True:
+            data = fp.read(BUFFER_SIZE)
+            if not data:
+                break
+            h.update(data)
+    return h.hexdigest()
+
+
 class NMPAuth(AuthBase):
     """Attaches ApiKey Authentication to the given Request object."""
 
-    def __init__(self, username, token):
+    def __init__(self, username, api_key):
         # setup any auth-related data here
         self.username = username
-        self.token = token
+        self.api_key = api_key
 
     def __call__(self, r):
         # modify and return the request
-        r.headers["Authorization"] = "ApiKey " + self.username + ":" + self.token
+        r.headers["x-api-key"] = self.api_key
         return r
 
 
 class HardwareClient(nmpi.Client):
     """
-    Client for interacting from a specific hardware, with the EBRAINS Neuromorphic Computing Platform.
+    Client for interacting from a specific hardware system with the EBRAINS Neuromorphic Computing Platform.
 
     This includes submitting jobs, tracking job status, retrieving the results of completed jobs,
     and creating and administering projects.
@@ -162,46 +169,36 @@ class HardwareClient(nmpi.Client):
         self,
         username,
         platform,
-        token,
-        job_service="https://nmpi.hbpneuromorphic.eu/api/v2/",
+        api_key,
+        job_service="https://nmpi-v3.hbpneuromorphic.eu/",
         verify=True,
     ):
         self.username = username
         self.cert = None
         self.verify = verify
-        self.token = token
+        self.api_key = api_key
         (scheme, netloc, path, params, query, fragment) = urlparse(job_service)
-        self.job_server = "%s://%s" % (scheme, netloc)
-        self.auth = NMPAuth(self.username, self.token)
-        # get schema
-        req = requests.get(job_service, cert=self.cert, verify=self.verify, auth=self.auth)
-        if req.ok:
-            self._schema = req.json()
-            self.resource_map = {
-                name: entry["list_endpoint"] for name, entry in req.json().items()
-            }
-        else:
-            self._handle_error(req)
+        self.job_server = f"{scheme}://{netloc}"
+        self.auth = NMPAuth(self.username, self.api_key)
         self.platform = platform
 
     def get_next_job(self):
         """
         Get the next job by oldest date in the queue.
         """
-        job_nmpi = self._query(
-            self.job_server + self.resource_map["queue"] + "/submitted/next/" + self.platform + "/"
-        )
-        if "warning" in job_nmpi:
-            job_nmpi = None
+        try:
+            job_nmpi = self._query(f"{self.job_server}/jobs/next/{self.platform}")
+        except Exception as err:
+            if "404" in str(err):
+                job_nmpi = None
+            else:
+                raise
         return job_nmpi
 
     def update_job(self, job):
         log = job.pop("log", None)
-        response = self._put(self.job_server + job["resource_uri"], job)
-        if log:
-            log_response = self._put(
-                self.job_server + "/api/v2/log/{}".format(job["id"]), {"content": log}
-            )
+        response = self._put(f"{self.job_server}{job['resource_uri']}", job)
+        response["log"] = log
         return response
 
     def reset_job(self, job):
@@ -210,11 +207,10 @@ class HardwareClient(nmpi.Client):
         reset its status to "submitted".
         """
         job["status"] = "submitted"
-        log_response = self._put(
-            self.job_server + "/api/v2/log/{}".format(job["id"]),
-            {"content": "reset status to 'submitted'\n"},
-        )
-        return self._put(self.job_server + job["resource_uri"], job)
+        if job["log"] is None:
+            job["log"] = ""
+        job["log"] += "\nreset status to 'submitted'\n"
+        return self._put(f"{self.job_server}{job['resource_uri']}", job)
 
     def kill_job(self, job, error_message=""):
         """
@@ -224,15 +220,13 @@ class HardwareClient(nmpi.Client):
         `reset_job()`.
         """
         if job["status"] not in ("running", "submitted"):
-            raise Exception("You cannot kill a job with status {}".format(job["status"]))
+            raise Exception(f"You cannot kill a job with status {job['status']}")
         job["status"] = "error"
-        log = job.pop("log", "")
-        response = self._put(self.job_server + job["resource_uri"], job)
-        log += "Internal error. Please resubmit the job\n"
-        log += error_message
-        log_response = self._put(
-            self.job_server + "/api/v2/log/{}".format(job["id"]), {"content": log}
-        )
+        if job["log"] is None:
+            job["log"] = ""
+        job["log"] += "Internal error. Please resubmit the job\n"
+        job["log"] += error_message
+        response = self._put(f"{self.job_server}{job['resource_uri']}", job)
         return response
 
     def queued_jobs(self, verbose=False):
@@ -246,10 +240,7 @@ class HardwareClient(nmpi.Client):
                   if True, return full details.
         """
         return self._query(
-            self.job_server
-            + self.resource_map["queue"]
-            + "/submitted/?hardware_platform="
-            + str(self.platform),
+            f"{self.job_server}/jobs/?hardware_platform={self.platform}&status=submitted",
             verbose=verbose,
         )
 
@@ -264,29 +255,24 @@ class HardwareClient(nmpi.Client):
                   if True, return full details.
         """
         return self._query(
-            self.job_server
-            + self.resource_map["queue"]
-            + "/running/?hardware_platform="
-            + str(self.platform),
+            f"{self.job_server}/jobs/?hardware_platform={self.platform}&status=running",
             verbose=verbose,
         )
 
 
 # adapted from Sumatra
-def _find_new_data_files(
-    root, timestamp, ignoredirs=[".smt", ".hg", ".svn", ".git", ".bzr"], ignore_extensions=[".pyc"]
-):
+def _find_new_data_files(root, timestamp, ignoredirs=[".git"], ignore_extensions=[".pyc"]):
     """Finds newly created/changed files in root."""
-    length_root = len(root) + len(path.sep)
+    length_root = len(root) + len(os.path.sep)
     new_files = []
     for root, dirs, files in os.walk(root):
         for igdir in ignoredirs:
             if igdir in dirs:
                 dirs.remove(igdir)
         for file in files:
-            if path.splitext(file)[1] not in ignore_extensions:
-                full_path = path.join(root, file)
-                relative_path = path.join(root[length_root:], file)
+            if os.path.splitext(file)[1] not in ignore_extensions:
+                full_path = os.path.join(root, file)
+                relative_path = os.path.join(root[length_root:], file)
                 last_modified = datetime.fromtimestamp(os.stat(full_path).st_mtime)
                 if last_modified >= timestamp:
                     new_files.append(relative_path)
@@ -299,8 +285,8 @@ def read_output(saga_job):
     created by the SAGA job.
     """
     job_desc = saga_job.get_description()
-    outfile = path.join(job_desc.working_directory, job_desc.output)
-    errfile = path.join(job_desc.working_directory, job_desc.error)
+    outfile = os.path.join(job_desc.working_directory, job_desc.output)
+    errfile = os.path.join(job_desc.working_directory, job_desc.error)
     try:
         with open(outfile) as fp:
             stdout = fp.read()
@@ -320,10 +306,10 @@ class JobRunner(object):
         self.service = saga.job.Service(config["JOB_SERVICE_ADAPTOR"])
         self.client = HardwareClient(
             username=config["AUTH_USER"],
-            token=config["AUTH_TOKEN"],
-            job_service=config["NMPI_HOST"] + config["NMPI_API"],
+            api_key=config["AUTH_TOKEN"],
+            job_service=config["NMPI_HOST"],
             platform=config["PLATFORM_NAME"],
-            verify=config["VERIFY_SSL"],
+            verify=config.get("VERIFY_SSL", True),
         )
 
     def next(self):
@@ -346,7 +332,7 @@ class JobRunner(object):
             self._handle_output_data(nmpi_job, saga_job)
             self._update_status(nmpi_job, saga_job, default_job_states)
             logger.debug("Status of completed job updated")
-        return nmpi_job
+        return [n for n, s in pending_jobs]
 
     def run(self, nmpi_job):
         # Build the job description
@@ -373,12 +359,12 @@ class JobRunner(object):
         Construct a Saga job description based on an NMPI job description and
         the local configuration.
         """
-        #    Set all relevant parameters as in http://saga-project.github.io/saga-python/doc/library/job/index.html
-        #    http://saga-project.github.io/saga-python/doc/tutorial/part5.html
 
         job_desc = saga.job.Description()
         job_id = nmpi_job["id"]
-        job_desc.working_directory = path.join(self.config["WORKING_DIRECTORY"], "job_%s" % job_id)
+        job_desc.working_directory = os.path.join(
+            self.config["WORKING_DIRECTORY"], f"job_{job_id}"
+        )
         # job_desc.spmd_variation    = "MPI" # to be commented out if not using MPI
 
         if nmpi_job["hardware_config"] is None:
@@ -386,16 +372,16 @@ class JobRunner(object):
         else:
             pyNN_version = nmpi_job["hardware_config"].get("pyNN_version", DEFAULT_PYNN_VERSION)
 
-        if pyNN_version == "0.7":
-            job_desc.executable = self.config["JOB_EXECUTABLE_PYNN_7"]
-        elif pyNN_version == "0.8":
-            job_desc.executable = self.config["JOB_EXECUTABLE_PYNN_8"]
+        if pyNN_version == "0.10":
+            job_desc.executable = self.config["JOB_EXECUTABLE_PYNN_10"]
+        elif pyNN_version == "0.11":
+            job_desc.executable = self.config["JOB_EXECUTABLE_PYNN_11"]
         else:
             raise ValueError(
-                "Supported PyNN versions: 0.7, 0.8. {} not supported".format(pyNN_version)
+                "Supported PyNN versions: 0.10, 0.11. {} not supported".format(pyNN_version)
             )
 
-        if self.config["JOB_QUEUE"] is not None:
+        if self.config.get("JOB_QUEUE", None) is not None:
             job_desc.queue = self.config["JOB_QUEUE"]  # aka SLURM "partition"
         script_name = nmpi_job.get("command", "")
         if not script_name:
@@ -403,10 +389,10 @@ class JobRunner(object):
         command_line = script_name.format(
             system=self.config["DEFAULT_PYNN_BACKEND"]
         )  # TODO: allow choosing backend in "hardware_config
-        command_line = path.join(job_desc.working_directory, command_line)
+        command_line = os.path.join(job_desc.working_directory, command_line)
         job_desc.arguments = command_line.split(" ")
-        job_desc.output = "saga_" + str(job_id) + ".out"
-        job_desc.error = "saga_" + str(job_id) + ".err"
+        job_desc.output = f"saga_{job_id}.out"
+        job_desc.error = f"saga_{job_id}.err"
         # job_desc.total_cpu_count
         # job_desc.number_of_processes = 1
         # job_desc.processes_per_host
@@ -417,12 +403,12 @@ class JobRunner(object):
         return job_desc
 
     def _create_working_directory(self, workdir):
-        if not path.exists(workdir):
-            logger.debug("Creating directory %s" % workdir)
+        if not os.path.exists(workdir):
+            logger.debug(f"Creating directory {workdir}")
             os.makedirs(workdir)
-            logger.debug("Created directory %s" % workdir)
+            logger.debug(f"Created directory {workdir}")
         else:
-            logger.debug("Directory %s already exists" % workdir)
+            logger.debug(f"Directory {workdir} already exists")
 
     def _get_code(self, nmpi_job, job_desc):
         """
@@ -433,15 +419,13 @@ class JobRunner(object):
         Otherwise, the content of "code" is the code: write it to a file.
         """
         url_candidate = urlparse(nmpi_job["code"])
-        logger.debug("Get code: %s %s", url_candidate.netloc, url_candidate.path)
+        logger.debug("Get code: {url_candidate.netloc} {url_candidate.path}")
         if url_candidate.scheme and url_candidate.path.endswith((".tar.gz", ".zip", ".tgz")):
             self._create_working_directory(job_desc.working_directory)
             target = os.path.join(job_desc.working_directory, os.path.basename(url_candidate.path))
             # urlretrieve(nmpi_job['code'], target) # not working via KIP https proxy
             curl(nmpi_job["code"], "-o", target)
-            logger.info(
-                "Retrieved file from {} to local target {}".format(nmpi_job["code"], target)
-            )
+            logger.info(f"Retrieved file from {nmpi_job['code']} to local target {target}")
             if url_candidate.path.endswith((".tar.gz", ".tgz")):
                 tar("xzf", target, directory=job_desc.working_directory)
             elif url_candidate.path.endswith(".zip"):
@@ -449,13 +433,13 @@ class JobRunner(object):
                     # -o for auto-overwrite
                     unzip("-o", target, d=job_desc.working_directory)
                 except:
-                    logger.error("Could not unzip file {}".format(target))
+                    logger.error(f"Could not unzip file {target}")
         else:
             try:
                 # Check the "code" field for a git url (clone it into the workdir) or a script (create a file into the workdir)
                 # URL: use git clone
                 git.clone("--recursive", nmpi_job["code"], job_desc.working_directory)
-                logger.info("Cloned repository {}".format(nmpi_job["code"]))
+                logger.info(f"Cloned repository {nmpi_job['code']}")
             except (sh.ErrorReturnCode_128, sh.ErrorReturnCode):
                 # SCRIPT: create file (in the current directory)
                 logger.info("The code field appears to be a script.")
@@ -475,7 +459,7 @@ class JobRunner(object):
     def _update_status(self, nmpi_job, saga_job, job_states):
         """Update the status of the nmpi job."""
         saga_state = saga_job.get_state()
-        logger.debug("SAGA state: {}".format(saga_state))
+        logger.debug(f"SAGA state: {saga_state}")
         set_status = job_states[saga_state]
         nmpi_job = set_status(nmpi_job, saga_job)
         self.client.update_job(nmpi_job)
@@ -488,40 +472,54 @@ class JobRunner(object):
         """
         job_desc = saga_job.get_description()
         new_files = _find_new_data_files(job_desc.working_directory, self.start_time)
-        output_dir = path.join(
-            self.config["DATA_DIRECTORY"], path.basename(job_desc.working_directory)
+        output_dir = os.path.join(
+            self.config["DATA_DIRECTORY"], os.path.basename(job_desc.working_directory)
         )
-        logger.debug("Copying files to {}: {}".format(output_dir, ", ".join(new_files)))
+        logger.debug(f"Copying files to {output_dir}: {', '.join(new_files)}")
+
+        nmpi_job["output_data"] = {
+            "repository": self.config["DATA_SERVER_IDENTIFIER"],
+            "files": [],
+        }
+
         if self.config["DATA_DIRECTORY"] != self.config["WORKING_DIRECTORY"]:
-            if not path.exists(self.config["DATA_DIRECTORY"]):
+            if not os.path.exists(self.config["DATA_DIRECTORY"]):
                 try:
                     os.makedirs(self.config["DATA_DIRECTORY"])
                 except Exception as err:
                     logging.error(err.message)
-            for new_file in new_files:
-                try:
-                    new_file_path = path.join(output_dir, new_file)
-                    if not os.path.exists(os.path.dirname(new_file_path)):
-                        os.makedirs(os.path.dirname(new_file_path))
-                    shutil.copyfile(path.join(job_desc.working_directory, new_file), new_file_path)
-                except Exception as err:
-                    logging.error(err.message)
-        # append the new output to the list of item data and retrieve it
-        # by POSTing to the DataItem list resource
-        logger.info("Posting data items")
         for new_file in new_files:
-            url = "{}/{}/{}".format(
-                self.config["DATA_SERVER"], os.path.basename(job_desc.working_directory), new_file
-            )
-            resource_uri = self.client.create_data_item(url)
-            nmpi_job["output_data"].append(resource_uri)
-        # ... and PUTting to the job resource
-        self.client.update_job(nmpi_job)
+            try:
+                full_relative_path = os.path.join(
+                    nmpi_job["collab"], f"job_{nmpi_job['id']}", new_file
+                )
+                new_file_path = os.path.join(output_dir, full_relative_path)
+                if not os.path.exists(os.path.dirname(new_file_path)):
+                    os.makedirs(os.path.dirname(new_file_path))
+                original_path = os.path.join(job_desc.working_directory, new_file)
+                if self.config["DATA_DIRECTORY"] != self.config["WORKING_DIRECTORY"]:
+                    shutil.copyfile(original_path, new_file_path)
+            except Exception as err:
+                logging.error(err.message)
+            else:
+                data_server = self.config["DATA_SERVER"]
+                if not data_server.endswith("/"):
+                    data_server += "/"
+                content_type, encoding = mimetypes.guess_type(original_path, strict=False)
+                nmpi_job["output_data"]["files"].append(
+                    {
+                        "url": f"{data_server}{full_relative_path}",
+                        "path": full_relative_path,
+                        "content_type": content_type,
+                        "size": os.stat(original_path).st_size,
+                        "hash": sha1sum(original_path),
+                    }
+                )
         logger.debug("Handling of output data complete")
 
 
 def main():
-    config = load_config(os.environ.get("NMPI_CONFIG", path.join(os.getcwd(), "nmpi.cfg")))
+    config = load_config(os.environ.get("NMPI_CONFIG", os.path.join(os.getcwd(), "nmpi.cfg")))
     runner = JobRunner(config)
     runner.next()
     return 0  # todo: handle exceptions

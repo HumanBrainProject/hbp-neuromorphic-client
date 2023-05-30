@@ -73,7 +73,7 @@ class JobRunnerTest(unittest.TestCase):
         self.job_runner.close()
 
     def test__run_job(self):
-        tmpdir = tempfile.mkdtemp(dir=os.path.join(os.path.expanduser("~/"), "tmp"))
+        tmpdir = tempfile.mkdtemp()
         with open(os.path.join(tmpdir, "run.py"), "w") as fp:
             fp.write(simple_test_script)
         job_desc = saga.job.Description()
@@ -93,7 +93,7 @@ class JobRunnerTest(unittest.TestCase):
         shutil.rmtree(tmpdir)
 
     def test__run_PyNN_job(self):
-        tmpdir = tempfile.mkdtemp(dir=os.path.join(os.path.expanduser("~/"), "tmp"))
+        tmpdir = tempfile.mkdtemp()
         with open(os.path.join(tmpdir, "run.py"), "w") as fp:
             fp.write(simulation_test_script)
         job_desc = saga.job.Description()
@@ -170,7 +170,7 @@ class QueueServerInteractionTest(unittest.TestCase):
 
 class FullStackTest(unittest.TestCase):
     def setUp(self):
-        self.tmpdir = tempfile.mkdtemp(dir=os.path.join(os.path.expanduser("~/"), "tmp"))
+        self.tmpdir = tempfile.mkdtemp()
         self.job_runner = nmpi_saga.JobRunner(
             dict(
                 JOB_SERVICE_ADAPTOR="fork://localhost",
@@ -213,8 +213,8 @@ class FullStackTest(unittest.TestCase):
 
 class CodeRetrievalTest(unittest.TestCase):
     def setUp(self):
-        self.tmp_src_dir = tempfile.mkdtemp(dir=os.path.join(os.path.expanduser("~/"), "tmp"))
-        self.tmp_run_dir = tempfile.mkdtemp(dir=os.path.join(os.path.expanduser("~/"), "tmp"))
+        self.tmp_src_dir = tempfile.mkdtemp()
+        self.tmp_run_dir = tempfile.mkdtemp()
 
     def tearDown(self):
         shutil.rmtree(self.tmp_src_dir)

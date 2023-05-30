@@ -10,7 +10,6 @@ test_staging:
     - python3 -m pip install -r requirements.txt
     - python3 -m pip install -r requirements-provider.txt
     - python3 -m pip install -r requirements-testing.txt
-    - cd api
     - python3 -m pytest -v --cov=nmpi --cov-report=term
   tags:
     - docker-runner

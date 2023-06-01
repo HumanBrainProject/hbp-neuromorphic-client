@@ -73,9 +73,10 @@ def _truncate(stream):
 
 def job_done(nmpi_job, saga_job):
     nmpi_job["status"] = "finished"
-    timestamp = datetime.now().isoformat()
-    nmpi_job["timestamp_completion"] = timestamp
-    nmpi_job["resource_usage"] = {"value": 1.0, "units": "litres"}  # todo: report the actual usage
+    timestamp = datetime.now()
+    nmpi_job["timestamp_completion"] = timestamp.isoformat()
+    duration = timestamp - nmpi_job["timestamp_started"]
+    nmpi_job["resource_usage"] = {"value": duration.total_seconds() / 3600, "units": "hours"}
     nmpi_job["provenance"] = {}  # todo: report provenance information
     log = nmpi_job.pop("log", "") or ""
     log += "{}    finished\n".format(datetime.now().isoformat())
@@ -90,6 +91,11 @@ def job_done(nmpi_job, saga_job):
 
 def job_failed(nmpi_job, saga_job):
     nmpi_job["status"] = "error"
+    timestamp = datetime.now()
+    nmpi_job["timestamp_completion"] = timestamp.isoformat()
+    duration = timestamp - nmpi_job["timestamp_started"]
+    nmpi_job["resource_usage"] = {"value": duration.total_seconds() / 3600, "units": "hours"}
+
     log = nmpi_job.pop("log", "") or ""
     log += "{}    failed\n\n".format(datetime.now().isoformat())
     stdout, stderr = read_output(saga_job)
@@ -196,8 +202,10 @@ class HardwareClient(nmpi.Client):
         return job_nmpi
 
     def update_job(self, job):
-        log = job.pop("log", None)
-        response = self._put(f"{self.job_server}{job['resource_uri']}", job)
+        job_copy = job.copy()
+        log = job_copy.pop("log", None)
+        job_copy.pop("timestamp_started", None)
+        response = self._put(f"{self.job_server}{job['resource_uri']}", job_copy)
         response["log"] = log
         return response
 
@@ -314,7 +322,7 @@ class JobRunner(object):
 
     def next(self):
         """
-        Get the next job by oldest date in the queue, and run it.
+        Get all available jobs from the queue, oldest to newest, and run them.
         """
         pending_jobs = []
         while True:
@@ -344,7 +352,7 @@ class JobRunner(object):
         # Submit a job to the cluster with SAGA."""
         saga_job = self.service.create_job(job_desc)
         # Run the job
-        self.start_time = datetime.now()
+        nmpi_job["timestamp_started"] = datetime.now()
         time.sleep(1)  # ensure output file timestamps are different from start_time
         logger.info("Running job {}".format(nmpi_job["id"]))
         saga_job.run()
@@ -432,7 +440,7 @@ class JobRunner(object):
                 try:
                     # -o for auto-overwrite
                     unzip("-o", target, d=job_desc.working_directory)
-                except:
+                except Exception:
                     logger.error(f"Could not unzip file {target}")
         else:
             try:
@@ -471,10 +479,8 @@ class JobRunner(object):
         output data
         """
         job_desc = saga_job.get_description()
-        new_files = _find_new_data_files(job_desc.working_directory, self.start_time)
-        output_dir = os.path.join(
-            self.config["DATA_DIRECTORY"], os.path.basename(job_desc.working_directory)
-        )
+        new_files = _find_new_data_files(job_desc.working_directory, nmpi_job["timestamp_started"])
+        output_dir = self.config["DATA_DIRECTORY"]
         logger.debug(f"Copying files to {output_dir}: {', '.join(new_files)}")
 
         nmpi_job["output_data"] = {
@@ -521,8 +527,18 @@ class JobRunner(object):
 def main():
     config = load_config(os.environ.get("NMPI_CONFIG", os.path.join(os.getcwd(), "nmpi.cfg")))
     runner = JobRunner(config)
-    runner.next()
-    return 0  # todo: handle exceptions
+    try:
+        jobs = runner.next()
+        if len(jobs) == 0:
+            print("No new jobs")
+        else:
+            for job in jobs:
+                print(f"{job['id']} ({job['user_id']}): {job['status']}")
+    except Exception as err:
+        print(err)
+        return 1
+    else:
+        return 0
 
 
 if __name__ == "__main__":

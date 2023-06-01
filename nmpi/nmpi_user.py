@@ -24,11 +24,9 @@ import os.path
 import json
 import getpass
 import logging
-import uuid
 import time
 from urllib.parse import urlparse, urlencode
 from urllib.request import urlretrieve
-import errno
 import fnmatch
 import re
 import requests
@@ -152,7 +150,6 @@ class Client(object):
         """
         EBRAINS authentication
         """
-        redirect_uri = self.authorization_endpoint + "/auth"
         session = requests.Session()
         r_login = session.get(self.authorization_endpoint + "/login", allow_redirects=False)
         if r_login.status_code != 302:
@@ -231,7 +228,6 @@ class Client(object):
             errmsg = request.content
         if isinstance(errmsg, bytes):
             errmsg = errmsg.decode("utf-8")
-        logger.error(errmsg)
         raise Exception("Error %s: %s" % (request.status_code, errmsg))
 
     def _query(self, resource_uri, verbose=True, ignore404=False):

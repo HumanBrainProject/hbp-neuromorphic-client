@@ -1,11 +1,11 @@
-from .nmpi_user import Client
+from .nmpi_user import Client  # noqa: F401
 
 try:
-    from .nmpi_saga import HardwareClient
+    from .nmpi_saga import HardwareClient  # noqa: F401
 except ImportError:
     pass
 try:
-    from .nmpi_admin import AdminClient
+    from .nmpi_admin import AdminClient  # noqa: F401
 except ImportError:
     pass
 

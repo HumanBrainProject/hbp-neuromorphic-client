@@ -65,7 +65,9 @@ def _truncate(stream):
     # todo: where we truncate, should save the entire log to file
     if len(stream) > MAX_LOG_SIZE:
         return (
-            stream[: MAX_LOG_SIZE // 2] + "\n\n... truncated...\n\n" + stream[-MAX_LOG_SIZE // 2 :]
+            stream[: MAX_LOG_SIZE // 2]
+            + "\n\n... truncated...\n\n"
+            + stream[-MAX_LOG_SIZE // 2 :]  # noqa: E203
         )
     else:
         return stream
@@ -462,7 +464,7 @@ class JobRunner(object):
         We assume that the script knows the input files are in the same folder
         """
         if "input_data" in nmpi_job and len(nmpi_job["input_data"]):
-            filelist = self.client.download_data_url(nmpi_job, job_desc.working_directory, True)
+            self.client.download_data_url(nmpi_job, job_desc.working_directory, True)
 
     def _update_status(self, nmpi_job, saga_job, job_states):
         """Update the status of the nmpi job."""

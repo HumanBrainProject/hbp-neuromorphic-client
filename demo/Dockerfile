@@ -10,7 +10,7 @@ COPY requirements-provider.txt /home/docker/packages/
 RUN /usr/bin/python3 -m pip install -r /home/docker/packages/requirements.txt
 RUN /usr/bin/python3 -m pip install -r /home/docker/packages/requirements-provider.txt
 
-RUN mkdir /home/docker/runner; mkdir /home/docker/bin; mkdir /home/docker/data
+RUN mkdir /home/docker/runner; mkdir /home/docker/bin
 COPY nmpi /home/docker/packages/nmpi
 COPY bin/nmpi_run.py /home/docker/bin/nmpi_run.py
 COPY demo/nmpi.cfg /home/docker/runner/nmpi.cfg

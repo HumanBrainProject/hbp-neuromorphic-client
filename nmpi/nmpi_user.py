@@ -84,14 +84,17 @@ class Client(object):
             set this to False, but this is not recommended.
     """
 
-    def __init__(self, username=None,
-                 password=None,
-                 job_service="https://nmpi.hbpneuromorphic.eu/api/v2/",
-                 quotas_service="https://quotas.hbpneuromorphic.eu",
-                 authorization_endpoint="https://validation-v2.brainsimulation.eu",
-                 user_info_endpoint="https://iam.ebrains.eu/auth/realms/hbp/protocol/openid-connect/userinfo",
-                 token=None,
-                 verify=True):
+    def __init__(
+        self,
+        username=None,
+        password=None,
+        job_service="https://nmpi.hbpneuromorphic.eu/api/v2/",
+        quotas_service="https://quotas.hbpneuromorphic.eu",
+        authorization_endpoint="https://nmpi-v3-staging.hbpneuromorphic.eu",
+        user_info_endpoint="https://iam.ebrains.eu/auth/realms/hbp/protocol/openid-connect/userinfo",
+        token=None,
+        verify=True,
+    ):
         if password is None and token is None:
             if have_collab_token_handler:
                 # if are we running in a Jupyter notebook within the Collaboratory
@@ -193,7 +196,7 @@ class Client(object):
                 "Something went wrong. Status code {} from final authentication step"
                 .format(r_val.status_code))
         config = r_val.json()
-        self.token = config['token']['access_token']
+        self.token = config["access_token"]
         self.config = config
 
     def _get_user_info(self):
@@ -206,9 +209,9 @@ class Client(object):
         else:
             self._handle_error(req)
         if self.username:
-            assert self.user_info['username'] == self.username
+            assert self.user_info["username"] == self.username
         else:
-            self.username = self.user_info['username']
+            self.username = self.user_info["username"]
 
     def _handle_error(self, request):
         """
@@ -221,7 +224,7 @@ class Client(object):
         except ValueError:
             errmsg = request.content
         if isinstance(errmsg, bytes):
-            errmsg = errmsg.decode('utf-8')
+            errmsg = errmsg.decode("utf-8")
         logger.error(errmsg)
         raise Exception("Error %s: %s" % (request.status_code, errmsg))
 
@@ -229,8 +232,7 @@ class Client(object):
         """
         Retrieve a resource or list of resources.
         """
-        req = requests.get(resource_uri, auth=self.auth,
-                           cert=self.cert, verify=self.verify)
+        req = requests.get(resource_uri, auth=self.auth, cert=self.cert, verify=self.verify)
         if req.ok:
             if "objects" in req.json():
                 objects = req.json()["objects"]
@@ -249,15 +251,18 @@ class Client(object):
         """
         Create a new resource.
         """
-        req = requests.post(resource_uri,
-                            data=json.dumps(data),
-                            auth=self.auth,
-                            cert=self.cert, verify=self.verify,
-                            headers={"content-type": "application/json"})
+        req = requests.post(
+            resource_uri,
+            data=json.dumps(data),
+            auth=self.auth,
+            cert=self.cert,
+            verify=self.verify,
+            headers={"content-type": "application/json"},
+        )
         if not req.ok:
             self._handle_error(req)
-        if 'Location' in req.headers:
-            return req.headers['Location']
+        if "Location" in req.headers:
+            return req.headers["Location"]
         else:
             return req.json()
 
@@ -265,11 +270,14 @@ class Client(object):
         """
         Updates a resource.
         """
-        req = requests.put(resource_uri,
-                           data=json.dumps(data),
-                           auth=self.auth,
-                           cert=self.cert, verify=self.verify,
-                           headers={"content-type": "application/json"})
+        req = requests.put(
+            resource_uri,
+            data=json.dumps(data),
+            auth=self.auth,
+            cert=self.cert,
+            verify=self.verify,
+            headers={"content-type": "application/json"},
+        )
         if not req.ok:
             self._handle_error(req)
         return data
@@ -278,14 +286,21 @@ class Client(object):
         """
         Deletes a resource
         """
-        req = requests.delete(resource_uri,
-                              auth=self.auth,
-                              cert=self.cert, verify=self.verify)
+        req = requests.delete(resource_uri, auth=self.auth, cert=self.cert, verify=self.verify)
         if not req.ok:
             self._handle_error(req)
 
-    def submit_job(self, source, platform, collab_id, config=None, inputs=None,
-                   command="run.py {system}", tags=None, wait=False):
+    def submit_job(
+        self,
+        source,
+        platform,
+        collab_id,
+        config=None,
+        inputs=None,
+        command="run.py {system}",
+        tags=None,
+        wait=False,
+    ):
         """
         Submit a job to the platform.
 
@@ -319,32 +334,31 @@ class Client(object):
             (default: "source_code")
         """
         job = {
-            'command': command,
-            'hardware_platform': platform,
-            'collab_id': collab_id,
-            'user_id': self.user_info["id"]
+            "command": command,
+            "hardware_platform": platform,
+            "collab_id": collab_id,
+            "user_id": self.user_info["id"],
         }
 
         source = os.path.expanduser(source)
         if os.path.exists(source):
             if os.path.splitext(source)[1] == ".py":
                 with open(source, "r") as fp:
-                    job['code'] = fp.read()
+                    job["code"] = fp.read()
             elif os.path.isdir(source):
-                remote_folder = self.upload_to_storage(source,
-                                                       collab_id,
-                                                       remote_folder=self.collab_source_folder,
-                                                       overwrite=True)
-                job['code'] = remote_folder.path
-                job['selected_tab'] = "upload_script"
-                job['command'] = self.collab_source_folder + "/" + job["command"]
+                remote_folder = self.upload_to_storage(
+                    source, collab_id, remote_folder=self.collab_source_folder, overwrite=True
+                )
+                job["code"] = remote_folder.path
+                job["selected_tab"] = "upload_script"
+                job["command"] = self.collab_source_folder + "/" + job["command"]
         else:
-            job['code'] = source
+            job["code"] = source
 
         if inputs is not None:
-            job['input_data'] = [self.create_data_item(input) for input in inputs]
+            job["input_data"] = [self.create_data_item(input) for input in inputs]
         if config is not None:
-            job['hardware_config'] = config
+            job["hardware_config"] = config
         if tags is not None:
             if isinstance(tags, (list, tuple)):
                 job["tags"] = tags
@@ -356,7 +370,7 @@ class Client(object):
         if wait:
             time.sleep(self.sleep_interval)
             state = self.job_status(job_id)
-            while state not in ('finished', 'error'):
+            while state not in ("finished", "error"):
                 time.sleep(self.sleep_interval)
                 state = self.job_status(job_id)
             result = self.get_job(job_id, with_log=True)
@@ -374,19 +388,16 @@ class Client(object):
             :text: the content of the comment.
         """
         status = self.get_job(job_id, with_log=False)["status"]
-        if status not in ['finished', 'error']:
+        if status not in ["finished", "error"]:
             return "Comment not submitted: job id must belong to a completed job (with status finished or error)."
 
-        comment = {
-            'content': text,
-            'user': self.user_info["id"]
-        }
+        comment = {"content": text, "user": self.user_info["id"]}
 
         try:
             job_id = int(job_id)
-            comment['job'] = "{}/{}".format(self.resource_map["results"], job_id)
+            comment["job"] = "{}/{}".format(self.resource_map["results"], job_id)
         except ValueError:
-            comment['job'] = job_id
+            comment["job"] = job_id
 
         result = self._post(self.job_server + self.resource_map["comment"], comment)
         print("Comment submitted")
@@ -424,11 +435,13 @@ class Client(object):
         assert job["id"] == job_id
         if with_log:
             try:
-                log = self._query(self.job_server + self.resource_map['log'] + "/{}".format(job_id))
+                log = self._query(
+                    self.job_server + self.resource_map["log"] + "/{}".format(job_id)
+                )
             except Exception:
-                job["log"] = ''
+                job["log"] = ""
             else:
-                assert log["resource_uri"] == '/api/v2/log/{}'.format(job_id)
+                assert log["resource_uri"] == "/api/v2/log/{}".format(job_id)
                 job["log"] = log["content"]
         return job
 
@@ -466,7 +479,13 @@ class Client(object):
             :verbose: if False, return just the job URIs,
                       if True, return full details.
         """
-        return self._query(self.job_server + self.resource_map["queue"] + "/submitted/?user_id=" + str(self.user_info["id"]), verbose=verbose)
+        return self._query(
+            self.job_server
+            + self.resource_map["queue"]
+            + "/submitted/?user_id="
+            + str(self.user_info["id"]),
+            verbose=verbose,
+        )
 
     def completed_jobs(self, collab_id, verbose=False):
         """
@@ -476,8 +495,10 @@ class Client(object):
             :verbose: if False, return just the job URIs,
                       if True, return full details.
         """
-        return self._query(self.job_server + self.resource_map["results"] + "?collab_id=" + str(collab_id),
-                           verbose=verbose)
+        return self._query(
+            self.job_server + self.resource_map["results"] + "?collab_id=" + str(collab_id),
+            verbose=verbose,
+        )
 
     def download_data(self, job, local_dir=".", include_input_data=False):
         """
@@ -516,7 +537,7 @@ class Client(object):
 
     def copy_data_to_storage(self, job_id, destination="drive"):
         """
-        Copy the data produced by the job with id `job_id` to the EBRAINS 
+        Copy the data produced by the job with id `job_id` to the EBRAINS
         Drive or to the HPAC Platform. Note that copying data to an HPAC
         site requires that you have an account for that site.
 
@@ -541,8 +562,9 @@ class Client(object):
         result = self._post(self.job_server + self.resource_map["dataitem"], data_item)
         return result
 
-    def upload_to_storage(self, local_directory, collab_id, remote_folder="",
-                          overwrite=False, include=["*.py"]):
+    def upload_to_storage(
+        self, local_directory, collab_id, remote_folder="", overwrite=False, include=["*.py"]
+    ):
         """
         Upload the contents of a local directory to the EBRAINS Drive.
 
@@ -591,9 +613,7 @@ class Client(object):
 
         # Create remote directories as needed
         remote_repo = self.storage_client.repos.get_repo_by_url(collab_id)
-        remote_dir_objs = {
-            "/": remote_repo.get_dir("/")
-        }
+        remote_dir_objs = {"/": remote_repo.get_dir("/")}
         for remote_path in sorted(remote_dir_names, key=lambda x: len(x)):
             # sort to ensure we create parents before children.
             try:
@@ -662,24 +682,29 @@ class Client(object):
 
         # create the resource request
         new_project = {
-            'context': context,
-            'collab': collab_id,
-            'owner': self.user_info['id'],
-            'title': title,
-            'abstract': abstract,
-            'description': description or ''
+            "context": context,
+            "collab": collab_id,
+            "owner": self.user_info["id"],
+            "title": title,
+            "abstract": abstract,
+            "description": description or "",
         }
         if submit:
             new_project["submitted"] = True
-        result = self._post(self.quotas_server + "/projects/",
-                            new_project)
+        result = self._post(self.quotas_server + "/projects/", new_project)
         if submit:
             print("Resource request {} submitted.".format(result["context"]))
         else:
-            print("Resource request {} created. Use `edit_resource_request()` to edit and submit".format(result["context"]))
+            print(
+                "Resource request {} created. Use `edit_resource_request()` to edit and submit".format(
+                    result["context"]
+                )
+            )
         return result["resource_uri"]
 
-    def edit_resource_request(self, request_id, title=None, abstract=None, description=None, submit=False):
+    def edit_resource_request(
+        self, request_id, title=None, abstract=None, description=None, submit=False
+    ):
         """
         Edit and/or submit an unsubmitted resource request
         """

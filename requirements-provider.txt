@@ -1,2 +1,3 @@
 sh
+netifaces2
 radical-saga

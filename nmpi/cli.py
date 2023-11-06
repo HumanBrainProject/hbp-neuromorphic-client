@@ -93,12 +93,19 @@ def cli(debug):
 @click.option("-b", "--batch", is_flag=True, help="Submit job then return immediately")
 @click.option("-o", "--output-dir", help="Output directory")
 @click.option("-e", "--server-env", default="production")
-def run(script, platform, batch, output_dir, tag, server_env):
+@click.option("-c", "--collab-id", help="Collab ID")
+@click.option("--token", help="OIDC token")
+def run(script, platform, batch, output_dir, tag, server_env, collab_id=None, token=None):
     """
     Run a simulation/emulation
     """
     config = load_config()
-    client = nmpi.Client(username=config["username"], job_service=_url_from_env(server_env))
+    if token:
+        client = nmpi.Client(token=token, job_service=_url_from_env(server_env))
+    elif "token" in config:
+        client = nmpi.Client(token=config["token"], job_service=_url_from_env(server_env))
+    else:
+        client = nmpi.Client(username=config["username"], job_service=_url_from_env(server_env))
 
     if os.path.exists(os.path.expanduser(script)):
         if os.path.isdir(script):
@@ -115,7 +122,7 @@ def run(script, platform, batch, output_dir, tag, server_env):
     job = client.submit_job(
         source,
         platform=platform or config["default_platform"],
-        collab_id=config["collab_id"],
+        collab_id=collab_id or config["collab_id"],
         config=config.get("hardware_config", None),
         inputs=None,
         command=command,

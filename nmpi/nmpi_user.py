@@ -23,8 +23,10 @@ limitations under the License.
 import os.path
 import json
 import getpass
+import hashlib
 import logging
 import time
+from tempfile import NamedTemporaryFile
 from urllib.parse import urlparse, urlencode
 from urllib.request import urlretrieve
 import fnmatch
@@ -39,18 +41,22 @@ try:
 except ImportError:
     have_collab_token_handler = False
 try:
-    from ebrains_drive.client import DriveApiClient
+    from ebrains_drive.client import DriveApiClient, BucketApiClient
     from ebrains_drive.exceptions import DoesNotExist
 
-    have_drive_client = True
+    have_ebrains_storage_client = True
 except ImportError:
-    have_drive_client = False
+    have_ebrains_storage_client = False
 
 logger = logging.getLogger("NMPI")
 
 TOKENFILE = os.path.expanduser("~/.hbptoken")
 UPLOAD_TIMESTAMPS = ".ebrains_drive_uploads"
 REPOSITORY_MAP = {"drive": "EBRAINS Drive", "bucket": "EBRAINS Bucket"}
+
+
+def is_url(item):
+    return item.startswith("http")
 
 
 class EBRAINSAuth(AuthBase):
@@ -91,8 +97,8 @@ class Client(object):
         self,
         username=None,
         password=None,
-        job_service="https://nmpi-v3-staging.hbpneuromorphic.eu",
-        authorization_endpoint="https://nmpi-v3-staging.hbpneuromorphic.eu",
+        job_service="https://nmpi-v3.hbpneuromorphic.eu",
+        authorization_endpoint="https://nmpi-v3.hbpneuromorphic.eu",
         user_info_endpoint="https://iam.ebrains.eu/auth/realms/hbp/protocol/openid-connect/userinfo",
         token=None,
         verify=True,
@@ -531,7 +537,7 @@ class Client(object):
             the entity id of the remote folder
         """
         if not self.storage_client:
-            if have_drive_client:
+            if have_ebrains_storage_client:
                 self.storage_client = DriveApiClient(token=self.token)
             else:
                 raise ImportError("Please install the ebrains_drive package")
@@ -710,3 +716,136 @@ class Client(object):
         for rr in resource_requests:
             quotas.extend(rr["quotas"])
         return quotas
+
+    def save_code_to_storage(self, job_id):
+        job = self.get_job(job_id)
+        code = job["code"]
+        if have_ebrains_storage_client:
+            storage_client = BucketApiClient(token=self.token)
+        else:
+            raise ImportError(
+                "Please install the ebrains_drive package to save code to EBRAINS storage"
+            )
+        bucket = storage_client.buckets.get_bucket(job["collab"])
+        with NamedTemporaryFile() as tmpf:
+            # fh = StringIO()
+            tmpf.write(code.encode("utf-8"))
+            tmpf.seek(0)
+            file_path = f"neuromorphic_code/job{job['id']}/run.py"
+            # bucket.upload(fh, file_path)
+            bucket.upload(tmpf.name, file_path)
+        code_url = f"https://data-proxy.ebrains.eu/api/v1/buckets/{job['collab']}/{file_path}"
+        return code_url
+
+    def send_job_to_kg(self, job_id):
+        """ """
+        job = self.get_job(job_id, with_log=True)
+        if job["user_id"] != self.user_info["username"]:
+            raise Exception("You can only send your own jobs' provenance metadata to the KG")
+        if job["status"] not in ["finished", "error"]:
+            raise Exception("Cannot send provence information for jobs that are still in progress")
+
+        job_label = (
+            f"neuromorphic computing job #{job['id']} running on {job['hardware_platform']}"
+        )
+
+        if is_url(job["code"]):
+            # need to distinguish between zip files, Github repos, ...
+            raise NotImplementedError("to do")
+            inputs = File, ModelVersionReference, SoftwareVersion
+        else:
+            # job code is stored as text within NMPI DB
+            # we need to create a Python file within the associated collab
+            # (using DataProxy API / ebrains_drive package)
+            code_url = self.save_code_to_storage(job_id)
+            base_name = code_url.split("/")[-1]
+            inputs = [
+                {  # File
+                    "description": f"Code for {job_label}",
+                    "file_name": base_name,
+                    "format": "text/x-python",  # or use more-specific content type, e.g. for PyNN
+                    "hash": {
+                        "algorithm": "SHA-1",
+                        "value": hashlib.sha1(job["code"].encode("utf-8")).hexdigest(),
+                    },
+                    "location": code_url,
+                    "size": len(job["code"].encode("utf-8")),
+                }
+            ]
+            # todo: add contents of job["input_data"], if any
+        outputs = []
+        # job["output_data"]["repository"]
+        for item in job["output_data"]["files"]:
+            if item["hash"]:
+                hash_obj = {"algorithm": "SHA-1", "value": item["hash"]}  # ?? or md5?
+            else:
+                hash_obj = None
+            outputs.append(
+                {
+                    "description": f"Output file for {job_label}",
+                    "file_name": item["path"],
+                    "format": item["content_type"],
+                    "hash": hash_obj,
+                    "location": item["url"],
+                    "size": item["size"],
+                }
+            )
+        STATUS_MAP = {"finished": "completed", "error": "failed"}
+        UNITS_MAP = {"core-hours": "core-hour", "wafer-hours": "wafer-hour"}
+        PLATFORM_MAP = {
+            "SpiNNaker": "SpiNNaker",
+            "BrainScaleS": "BrainScaleS-1",
+            "BrainScaleS-2": "BrainScaleS-2",
+        }
+        prov = {
+            "type": "simulation",
+            "description": f"Provenance record for {job_label}",
+            "end_time": job["timestamp_completion"],
+            "environment": {
+                # to avoid creating a new environment for each job, we could provide a name in job["provenance"]
+                "name": f"Computational environment for {job_label}",
+                "hardware": PLATFORM_MAP[job["hardware_platform"]],
+                "configuration": job["hardware_config"],
+                "software": None,
+                "description": None,
+            },
+            "input": inputs,
+            "launch_config": {
+                "arguments": job["command"].split(" "),  # todo: improve and test this
+                "description": None,
+                "environment_variables": None,  # {},
+                "executable": "python",  # take from job["provenance"] ?
+                # see comment about in environment on avoiding creating a new launch config for each job
+                "name": f"Launch configuration for {job_label}",
+            },
+            "output": outputs,
+            "project_id": job["collab"],
+            "recipe_id": None,  # could be stored in job["provenance"]
+            "resource_usage": [
+                {
+                    "value": job["resource_usage"]["value"],
+                    "units": UNITS_MAP[job["resource_usage"]["units"]],
+                }
+            ],
+            "started_by": {
+                "given_name": self.user_info["given_name"],
+                "family_name": self.user_info["family_name"],
+            },
+            "start_time": job["timestamp_submission"],
+            "status": STATUS_MAP[job["status"]],
+            "tags": job["tags"],
+        }
+        # PROV_API_SERVER = "http://127.0.0.1:8000"
+        PROV_API_SERVER = "https://prov.brainsimulation.eu"
+        response = requests.post(
+            url=f"{PROV_API_SERVER}/simulations/?space=collab-{job['collab']}",
+            json=prov,
+            auth=self.auth,
+        )
+        if response.status_code != 201:
+            if response.status_code == 500:
+                errmsg = response.text
+            else:
+                errmsg = response.json()
+            raise Exception(errmsg)
+        return response.json()

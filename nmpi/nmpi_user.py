@@ -752,7 +752,7 @@ class Client(object):
         if is_url(job["code"]):
             # need to distinguish between zip files, Github repos, ...
             raise NotImplementedError("to do")
-            inputs = File, ModelVersionReference, SoftwareVersion
+            ### inputs = File, ModelVersionReference, SoftwareVersion
         else:
             # job code is stored as text within NMPI DB
             # we need to create a Python file within the associated collab

@@ -5,7 +5,7 @@ developed by the Human Brain Project.
 Authors: Andrew P. Davison and Domenico Guarino, NeuroPSI, CNRS
 
 
-Copyright 2016-2022 Andrew P. Davison and Domenico Guarino, Centre National de la Recherche Scientifique
+Copyright 2016-2023 Andrew P. Davison and Domenico Guarino, Centre National de la Recherche Scientifique
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

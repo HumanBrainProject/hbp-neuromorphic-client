@@ -39,7 +39,7 @@ logger.setLevel(logging.INFO)
 
 def load_config():
     if not os.path.exists("nmpi_config.yml"):
-        raise click.ClickException("There is no config file (nmpi_config.yml) in this directory")
+        return {}
     with open("nmpi_config.yml") as fp:
         config = yaml.safe_load(fp)
     for required_field in ("username", "collab_id", "default_platform"):
@@ -61,9 +61,9 @@ def read_incomplete_jobs():
 
 def _url_from_env(server_env):
     if server_env == "production":
-        job_service = "https://nmpi.hbpneuromorphic.eu/api/v2/"
+        job_service = "https://nmpi-v3.hbpneuromorphic.eu/"
     elif server_env == "staging":
-        job_service = "https://nmpi-staging.hbpneuromorphic.eu/api/v2/"
+        job_service = "https://nmpi-v3-staging.hbpneuromorphic.eu/"
     elif server_env.startswith("https"):
         job_service = server_env
     else:
@@ -104,6 +104,10 @@ def run(script, platform, batch, output_dir, tag, server_env, collab_id=None, to
         client = nmpi.Client(token=token, job_service=_url_from_env(server_env))
     elif "token" in config:
         client = nmpi.Client(token=config["token"], job_service=_url_from_env(server_env))
+    elif "username" not in config:
+        raise click.ClickException(
+            "Username must be provided in a config file (nmpi_config.yml) in the current directory"
+        )
     else:
         client = nmpi.Client(username=config["username"], job_service=_url_from_env(server_env))
 
@@ -118,6 +122,15 @@ def run(script, platform, batch, output_dir, tag, server_env, collab_id=None, to
             command = "{} {{system}}".format(os.path.basename(script))
     else:
         raise click.ClickException("Script '{}' does not exist".format(script))
+
+    if not platform and "default_platform" not in config:
+        raise click.ClickException(
+            "The platform must be provided as an option or in a config file (nmpi_config.yml) in the current directory"
+        )
+    if not collab_id and "collab_id" not in config:
+        raise click.ClickException(
+            "The collab id must be provided as an option or in a config file (nmpi_config.yml) in the current directory"
+        )
 
     job = client.submit_job(
         source,
@@ -144,15 +157,21 @@ def run(script, platform, batch, output_dir, tag, server_env, collab_id=None, to
 
 
 @click.option("-e", "--server-env", default="production")
+@click.option("--token", help="OIDC token")
 @cli.command()
-def check(server_env=None):
+def check(server_env=None, token=None):
     """
     Check for completed jobs
     """
     # todo: add a "continuous" mode so that this can run as a background job
     #       this will require locking the incomplete jobs file - see https://filelock.readthedocs.io/
     config = load_config()
-    client = nmpi.Client(username=config["username"], job_service=_url_from_env(server_env))
+    if token:
+        client = nmpi.Client(token=token, job_service=_url_from_env(server_env))
+    elif "token" in config:
+        client = nmpi.Client(token=config["token"], job_service=_url_from_env(server_env))
+    else:
+        client = nmpi.Client(username=config["username"], job_service=_url_from_env(server_env))
 
     incomplete_jobs = read_incomplete_jobs()
     completed_jobs = []

@@ -1,0 +1,31 @@
+name: Mirror to EBRAINS
+
+on:
+  push:
+    branches: [ api-v3 ]
+
+jobs:
+  to_ebrains:
+    runs-on: ubuntu-latest
+    steps:
+      - name: syncstaging
+        uses: wei/git-sync@v3
+        with:
+          source_repo: "HumanBrainProject/hbp-neuromorphic-client"
+          source_branch: "api-v3"
+          destination_repo: "https://ghpusher:${{ secrets.EBRAINS_GITLAB_ACCESS_TOKEN }}@gitlab.ebrains.eu/neuromorphic/python-client.git"
+          destination_branch: "api-v3"
+      - name: sync-api-v3
+        uses: wei/git-sync@v3
+        with:
+          source_repo: "HumanBrainProject/hbp-neuromorphic-client"
+          source_branch: "api-v3"
+          destination_repo: "https://ghpusher:${{ secrets.EBRAINS_GITLAB_ACCESS_TOKEN }}@gitlab.ebrains.eu/neuromorphic/python-client.git"
+          destination_branch: "api-v3"
+      - name: synctags
+        uses: wei/git-sync@v3
+        with:
+          source_repo: "HumanBrainProject/hbp-neuromorphic-client"
+          source_branch: "refs/tags/*"
+          destination_repo: "https://ghpusher:${{ secrets.EBRAINS_GITLAB_ACCESS_TOKEN }}@gitlab.ebrains.eu/neuromorphic/python-client.git"
+          destination_branch: "refs/tags/*"

@@ -359,7 +359,7 @@ class Client(object):
                 remote_folder = self.upload_to_storage(
                     source, collab_id, remote_folder=self.collab_source_folder, overwrite=True
                 )
-                job["code"] = remote_folder.path
+                job["code"] = f"drive://{collab_id}{remote_folder.path}"
                 job["command"] = self.collab_source_folder + "/" + job["command"]
         else:
             job["code"] = source

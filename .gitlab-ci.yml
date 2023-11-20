@@ -1,7 +1,7 @@
 stages:
   - test
 
-test_staging:
+test_main:
   stage: test
   only:
     variables:

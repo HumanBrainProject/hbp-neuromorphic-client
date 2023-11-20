@@ -3,7 +3,7 @@
 
 from setuptools import setup
 
-requirements = ["requests", "click", "pyyaml"]
+requirements = ["requests", "click", "pyyaml", "ebrains_drive"]
 
 test_requirements = [
     # TODO: put package test requirements here
@@ -13,7 +13,7 @@ long_description = open("README.md").read()
 
 setup(
     name="hbp_neuromorphic_platform",
-    version="0.11.1",
+    version="0.11.2",
     packages=["nmpi"],
     package_dir={"nmpi": "nmpi"},
     entry_points={"console_scripts": ["nmpi=nmpi.cli:cli"]},

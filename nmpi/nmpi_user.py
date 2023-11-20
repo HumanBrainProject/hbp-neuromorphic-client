@@ -31,6 +31,7 @@ from urllib.parse import urlparse, urlencode
 from urllib.request import urlretrieve
 import fnmatch
 import re
+from warnings import warn
 import requests
 from requests.auth import AuthBase
 
@@ -707,7 +708,11 @@ class Client(object):
             url += "?" + urlencode(filters)
         return self._query(url)
 
-    def list_quotas(self, collab_id):
+    def list_resource_requests(self, collab_id, status=None):
+        warn("Use of `list_resource_requests() is deprecated, use `resource_requests()` instead.")
+        return self.resource_requests(collab_id, status=status)
+
+    def quotas(self, collab_id):
         """
         Return a list of quotas for running jobs on the Neuromorphic Platform
         """
@@ -716,6 +721,10 @@ class Client(object):
         for rr in resource_requests:
             quotas.extend(rr["quotas"])
         return quotas
+
+    def list_quotas(self, collab_id):
+        warn("Use of `list_resource_requests() is deprecated, use `resource_requests()` instead.")
+        return self.quotas(collab_id)
 
     def save_code_to_storage(self, job_id):
         job = self.get_job(job_id)

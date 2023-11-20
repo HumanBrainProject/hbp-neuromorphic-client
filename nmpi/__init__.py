@@ -1,10 +1,11 @@
-from .nmpi_user import Client
+from .nmpi_user import Client  # noqa: F401
+
 try:
-    from .nmpi_saga import HardwareClient
+    from .nmpi_saga import HardwareClient  # noqa: F401
 except ImportError:
     pass
 try:
-    from .nmpi_admin import AdminClient
+    from .nmpi_admin import AdminClient  # noqa: F401
 except ImportError:
     pass
 
@@ -15,4 +16,4 @@ BRAINSCALES2 = "BrainScaleS-2"
 ESS = "BrainScaleS-ESS"
 SPIKEY = "Spikey"
 
-__version__ = "0.10.0"
+__version__ = "0.11.2"

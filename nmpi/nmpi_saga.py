@@ -27,13 +27,16 @@ from datetime import datetime
 import time
 import mimetypes
 import hashlib
-import radical.saga as saga
 import logging
+import codecs
+import traceback
+
+import radical.saga as saga
 import sh
 from sh import git, unzip, tar, curl
-import nmpi
-import codecs
 from requests.auth import AuthBase
+
+import nmpi
 
 
 DEFAULT_SCRIPT_NAME = "run.py {system}"
@@ -542,7 +545,7 @@ def main():
             for job in jobs:
                 print(f"{job['id']} ({job['user_id']}): {job['status']}")
     except Exception as err:
-        print(err)
+        traceback.print_exception(err)
         return 1
     else:
         return 0

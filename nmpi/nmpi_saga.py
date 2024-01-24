@@ -208,6 +208,7 @@ class HardwareClient(nmpi.Client):
         log = job_copy.pop("log", None)
         job_copy.pop("timestamp_started", None)
         response = self._put(f"{self.job_server}{job['resource_uri']}", job_copy)
+        response2 = self._put(f"{self.job_server}{job['resource_uri']}/log", log)
         response["log"] = log
         return response
 

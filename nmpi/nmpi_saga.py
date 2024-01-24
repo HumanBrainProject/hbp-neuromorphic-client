@@ -212,7 +212,6 @@ class HardwareClient(nmpi.Client):
         job_copy.pop("timestamp_started", None)
         response = self._put(f"{self.job_server}{job['resource_uri']}", job_copy)
         response2 = self._put(f"{self.job_server}{job['resource_uri']}/log", log, format="text")
-        response["log"] = log
         return response
 
     def reset_job(self, job):
@@ -545,7 +544,7 @@ def main():
             for job in jobs:
                 print(f"{job['id']} ({job['user_id']}): {job['status']}")
     except Exception as err:
-        traceback.print_exception(err)
+        traceback.print_exc()
         return 1
     else:
         return 0

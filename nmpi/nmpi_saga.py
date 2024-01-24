@@ -322,6 +322,7 @@ class JobRunner(object):
             platform=config["PLATFORM_NAME"],
             verify=config.get("VERIFY_SSL", True),
         )
+        logger.info(f"JobRunner config: {config}")
 
     def next(self):
         """
@@ -528,7 +529,10 @@ class JobRunner(object):
 
 
 def main():
-    config = load_config(os.environ.get("NMPI_CONFIG", os.path.join(os.getcwd(), "nmpi.cfg")))
+    logger.info(os.environ.get("NMPI_CONFIG", "Using default config"))
+    config_file = os.environ.get("NMPI_CONFIG", os.path.join(os.getcwd(), "nmpi.cfg"))
+    logger.info(f"Loading config from {config_file}")
+    config = load_config(config_file)
     runner = JobRunner(config)
     try:
         jobs = runner.next()

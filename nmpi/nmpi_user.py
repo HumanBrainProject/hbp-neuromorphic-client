@@ -269,17 +269,23 @@ class Client(object):
         else:
             return req.json()
 
-    def _put(self, resource_uri, data):
+    def _put(self, resource_uri, data, format="json"):
         """
         Updates a resource.
         """
+        if format == "json":
+            data = json.dumps(data)
+            headers = {"content-type": "application/json"}
+        else:
+            data = data.encode("utf-8")
+            headers = {"content-type": "text/plain; charset=utf-8"}
         req = requests.put(
             resource_uri,
-            data=json.dumps(data),
+            data=data,
             auth=self.auth,
             cert=self.cert,
             verify=self.verify,
-            headers={"content-type": "application/json"},
+            headers=headers,
         )
         if not req.ok:
             self._handle_error(req)

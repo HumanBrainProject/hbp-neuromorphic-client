@@ -1,4 +1,4 @@
-FROM neuralensemble/simulation:pynn0110
+FROM docker-registry.ebrains.eu/neuralensemble/simulation:pynn0110
 
 USER root
 RUN apt-get update --fix-missing; apt-get -y -q install python3-pip supervisor nginx-extras git unzip curl cron

@@ -13,13 +13,12 @@ RUN /usr/bin/python3 -m pip install -r /home/docker/packages/requirements-provid
 RUN mkdir /home/docker/runner; mkdir /home/docker/bin
 COPY nmpi /home/docker/packages/nmpi
 COPY bin/nmpi_run.py /home/docker/bin/nmpi_run.py
-COPY demo/nmpi.cfg /home/docker/runner/nmpi.cfg
 
 ENV PYTHONPATH  /home/docker/packages
-ENV NMPI_CONFIG /home/docker/runner/nmpi.cfg
+ENV NMPI_CONFIG /home/docker/config/nmpi.cfg
 
 # Check for jobs every minute
-RUN crontab -l | { cat; echo "* * * * * PYTHONPATH=/home/docker/packages NMPI_CONFIG=/home/docker/runner/nmpi.cfg /usr/bin/python3 /home/docker/bin/nmpi_run.py >> /home/docker/cron.log 2>> /home/docker/cron.log"; } | crontab -
+RUN crontab -l | { cat; echo "* * * * * PYTHONPATH=/home/docker/packages NMPI_CONFIG=/home/docker/config/nmpi.cfg /usr/bin/python3 /home/docker/bin/nmpi_run.py >> /home/docker/cron.log 2>> /home/docker/cron.log"; } | crontab -
 
 USER root
 RUN echo "daemon off;" >> /etc/nginx/nginx.conf

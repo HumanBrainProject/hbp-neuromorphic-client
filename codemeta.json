@@ -1,0 +1,53 @@
+{
+  "@context": "https://w3id.org/codemeta/3.0",
+  "type": "SoftwareSourceCode",
+  "author": [
+    {
+      "id": "https://orcid.org/0000-0003-4793-9560",
+      "type": "Person",
+      "familyName": "Guarino",
+      "givenName": "Domenico"
+    },
+    {
+      "type": "Person",
+      "familyName": "Müller",
+      "givenName": "Eric"
+    },
+    {
+      "type": "Person",
+      "familyName": "Schmidt",
+      "givenName": "Hartmut"
+    },
+    {
+      "type": "Person",
+      "familyName": "Ates",
+      "givenName": "Onur"
+    },
+    {
+      "type": "Person",
+      "familyName": "Schmuker",
+      "givenName": "Michael"
+    },
+    {
+      "id": "https://orcid.org/0000-0002-4793-7541",
+      "type": "Person",
+      "email": "andrew.davison@cnrs.fr",
+      "familyName": "Davison",
+      "givenName": "Andrew P."
+    }
+  ],
+  "codeRepository": "https://github.com/HumanBrainProject/hbp-neuromorphic-client",
+  "dateModified": "2023-11-20",
+  "datePublished": "2015-06-30",
+  "description": "Python client for the EBRAINS Neuromorphic Computing Platform.",
+  "downloadUrl": "https://files.pythonhosted.org/packages/76/6c/48edeb434836bcd1d260b853f906d3f982e95a3c1841c6c67185bb601d76/hbp_neuromorphic_platform-0.11.2.tar.gz",
+  "isPartOf": "https://ebrains.eu",
+  "keywords": "neuromorphic",
+  "license": "https://spdx.org/licenses/Apache-2.0",
+  "name": "hbp-neuromorphic-platform",
+  "operatingSystem": ["Linux", "macOS"],
+  "programmingLanguage": "Python 3",
+  "version": "0.11.2",
+  "developmentStatus": "active",
+  "issueTracker": "https://github.com/HumanBrainProject/hbp-neuromorphic-client/issues"
+}

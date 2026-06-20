@@ -267,3 +267,71 @@ class CodeRetrievalTest(unittest.TestCase):
         self.assertEqual(sorted(os.listdir(self.tmp_run_dir)), ["run.py", "testcode.tar.gz"])
         with open(os.path.join(self.tmp_run_dir, "run.py")) as fp:
             self.assertEqual(fp.read(), simulation_test_script)
+
+
+class _FakeSagaJob(object):
+    """Minimal stand-in for a SAGA job; wait() marks the job as no longer running."""
+
+    def __init__(self, job_id, running):
+        self.id = job_id
+        self._running = running
+
+    def wait(self):
+        self._running.discard(self.id)
+
+
+class ConcurrencyLimitTest(unittest.TestCase):
+    """
+    Unit tests for JobRunner.next() concurrency limiting.
+
+    These do not touch the network or a real SAGA backend: __init__ is bypassed
+    and the queue client / job execution are replaced with in-memory fakes, so we
+    can assert how many jobs run at once for a given MAX_CONCURRENT_JOBS value.
+    """
+
+    def _make_runner(self, job_ids, max_concurrent_jobs):
+        running = set()
+        observed = {"max": 0}
+        pending_ids = list(job_ids)
+
+        runner = nmpi_saga.JobRunner.__new__(nmpi_saga.JobRunner)
+        runner.max_concurrent_jobs = max_concurrent_jobs
+
+        class _FakeClient(object):
+            def get_next_job(self):
+                if pending_ids:
+                    return {"id": pending_ids.pop(0)}
+                return None
+
+        runner.client = _FakeClient()
+
+        def fake_run(nmpi_job):
+            running.add(nmpi_job["id"])
+            observed["max"] = max(observed["max"], len(running))
+            return _FakeSagaJob(nmpi_job["id"], running)
+
+        # Replace the methods next() depends on with no-op/fake versions.
+        runner.run = fake_run
+        runner._update_status = lambda nmpi_job, saga_job, states: nmpi_job
+        runner._handle_output_data = lambda nmpi_job, saga_job: None
+        return runner, observed
+
+    def test_sequential_when_limit_is_one(self):
+        runner, observed = self._make_runner([1, 2, 3, 4], max_concurrent_jobs=1)
+        completed = runner.next()
+        self.assertEqual([j["id"] for j in completed], [1, 2, 3, 4])
+        self.assertEqual(observed["max"], 1)
+
+    def test_respects_limit_above_one(self):
+        runner, observed = self._make_runner([1, 2, 3, 4, 5], max_concurrent_jobs=2)
+        completed = runner.next()
+        self.assertEqual([j["id"] for j in completed], [1, 2, 3, 4, 5])
+        self.assertLessEqual(observed["max"], 2)
+
+    def test_no_limit_starts_all_before_waiting(self):
+        # The default (None) preserves the original behaviour: every queued job is
+        # started before any is waited on.
+        runner, observed = self._make_runner([1, 2, 3, 4], max_concurrent_jobs=None)
+        completed = runner.next()
+        self.assertEqual([j["id"] for j in completed], [1, 2, 3, 4])
+        self.assertEqual(observed["max"], 4)

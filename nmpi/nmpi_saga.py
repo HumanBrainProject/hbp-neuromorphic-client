@@ -317,6 +317,17 @@ class JobRunner(object):
     def __init__(self, config):
         self.config = config
         self.service = saga.job.Service(config["JOB_SERVICE_ADAPTOR"])
+        # Maximum number of jobs to run concurrently. The default, None, means no
+        # limit, which is appropriate for batch-scheduler adaptors (e.g. SLURM) that
+        # queue jobs themselves. For the local "fork://" adaptor, where each job is
+        # a process forked on this machine, set this to a small number (1 for strict
+        # one-at-a-time execution) to avoid overloading a resource-constrained host.
+        max_concurrent = config.get("MAX_CONCURRENT_JOBS", None)
+        if max_concurrent is not None:
+            max_concurrent = int(max_concurrent)
+            if max_concurrent < 1:
+                raise ValueError("MAX_CONCURRENT_JOBS must be >= 1 (or None for no limit)")
+        self.max_concurrent_jobs = max_concurrent
         self.client = HardwareClient(
             username=config["AUTH_USER"],
             api_key=config["AUTH_TOKEN"],
@@ -328,25 +339,45 @@ class JobRunner(object):
 
     def next(self):
         """
-        Get all available jobs from the queue, oldest to newest, and run them.
+        Get available jobs from the queue, oldest to newest, and run them.
+
+        At most ``self.max_concurrent_jobs`` jobs run at the same time. When that
+        limit is reached, we wait for the oldest in-flight job to finish (handling
+        its output) before starting the next one. With ``max_concurrent_jobs`` set
+        to 1 this gives strictly sequential execution; with ``None`` (the default)
+        there is no limit and all queued jobs are started before any is waited on.
         """
-        pending_jobs = []
-        while True:
-            logger.info("Retrieving next job")
-            nmpi_job = self.client.get_next_job()
-            if nmpi_job is None or nmpi_job in [n for n, s in pending_jobs]:
-                logger.info("No new jobs")
-                break
-            saga_job = self.run(nmpi_job)
-            self._update_status(nmpi_job, saga_job, default_job_states)
-            pending_jobs.append((nmpi_job, saga_job))
-        for nmpi_job, saga_job in pending_jobs:
+        completed_jobs = []
+        pending_jobs = []  # (nmpi_job, saga_job), oldest first
+        seen_jobs = []
+
+        def finish_oldest():
+            nmpi_job, saga_job = pending_jobs.pop(0)
             saga_job.wait()
             logger.info("Job {} completed".format(saga_job.id))
             self._handle_output_data(nmpi_job, saga_job)
             self._update_status(nmpi_job, saga_job, default_job_states)
             logger.debug("Status of completed job updated")
-        return [n for n, s in pending_jobs]
+            completed_jobs.append(nmpi_job)
+
+        while True:
+            logger.info("Retrieving next job")
+            nmpi_job = self.client.get_next_job()
+            if nmpi_job is None or nmpi_job in seen_jobs:
+                logger.info("No new jobs")
+                break
+            seen_jobs.append(nmpi_job)
+            # Respect the concurrency limit before starting the job.
+            if self.max_concurrent_jobs is not None:
+                while len(pending_jobs) >= self.max_concurrent_jobs:
+                    finish_oldest()
+            saga_job = self.run(nmpi_job)
+            self._update_status(nmpi_job, saga_job, default_job_states)
+            pending_jobs.append((nmpi_job, saga_job))
+        # Wait for any jobs still running.
+        while pending_jobs:
+            finish_oldest()
+        return completed_jobs
 
     def run(self, nmpi_job):
         # Build the job description

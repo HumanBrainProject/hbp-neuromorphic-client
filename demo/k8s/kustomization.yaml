@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The Secret is intentionally NOT listed here: copy secret.example.yaml to
+# secret.yaml, fill in AUTH_TOKEN, apply it separately, and keep it out of git.
+resources:
+  - data-pvc.yaml
+  - fileserver-configmap.yaml
+  - deployment.yaml
+  - service.yaml
+  - networkpolicy.yaml
+  - ingress.yaml

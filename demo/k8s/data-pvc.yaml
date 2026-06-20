@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nmpi-demo-data
+  labels:
+    app: nmpi-demo
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  # Set storageClassName to match your cluster (leave commented to use the default).
+  # storageClassName: standard

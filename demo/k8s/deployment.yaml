@@ -25,6 +25,11 @@ spec:
         # containers can write to them.
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
+        # RuntimeDefault is kept. The per-job bubblewrap sandbox (Tier 1) needs
+        # unprivileged user namespaces to be available on the node; on modern
+        # containerd/runc with RuntimeDefault this is allowed. If the sandbox
+        # cannot start, the runner marks the job failed (fail-closed) — see
+        # README.md for how to verify and, if needed, a custom seccomp profile.
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -65,7 +70,7 @@ spec:
               mountPath: /tmp
         # ---- File server: serves completed-job output, read-only ----
         - name: fileserver
-          image: nginxinc/nginx-unprivileged:1.27-alpine
+          image: docker-registry.ebrains.eu/neuromorphic/nginx-unprivileged:1.27-alpine
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

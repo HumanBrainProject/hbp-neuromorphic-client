@@ -1,9 +1,10 @@
-# Demo provider — Kubernetes deployment (Tier 0 hardening)
+# Demo provider — Kubernetes deployment (Tier 0 + Tier 1 hardening)
 
 Manifests for running the Demo neuromorphic provider as a hardened Kubernetes pod.
-This is the **Tier 0** step of the security plan: it does not yet sandbox individual
-jobs (Tier 1), but it removes root, bounds resources, restricts egress, and stops
-serving untrusted output as active content.
+**Tier 0** removes root, bounds resources, restricts egress, and stops serving
+untrusted output as active content. **Tier 1** additionally sandboxes each
+individual job (no network, isolated namespaces, resource/time limits) and fixes
+the concrete code-fetch vulnerabilities.
 
 ## What's here
 
@@ -44,13 +45,40 @@ kubectl apply -k .
   Kubernetes API.
 - **Safe output serving.** The file server mounts the data volume **read-only**, with
   directory listing off and every file served as a non-sniffable attachment, scoped
-  CORS instead of `*`.
+  CORS (`*.ebrains.eu` / `*.hbpneuromorphic.eu`) instead of `*`.
+
+## Hardening applied (Tier 1)
+
+- **Per-job sandbox.** Each untrusted job runs inside bubblewrap (`sandbox-job.sh`,
+  enabled via `SANDBOX_WRAPPER` in the config): **no network**, its own
+  user/mount/PID/IPC namespaces, a fresh tmpfs root exposing only the read-only
+  simulator env and the job's own working directory — so a job cannot read the
+  provider's config/token, the TLS material, or any other job's files. Resource
+  limits (max processes, CPU seconds) and a wall-clock `timeout` bound each job.
+- **Code-fetch fixes.** `git clone` no longer uses `--recursive` (submodule URLs are
+  attacker-controlled — SSRF) and runs shallow, non-interactive, with a timeout.
+  Archives are unpacked with a zip-slip/zip-bomb-safe extractor that rejects
+  absolute paths, `..` traversal, symlinks/devices, and oversized expansion. Inline
+  scripts are size-capped, and an optional `ALLOWED_CODE_HOSTS` allowlist restricts
+  fetch hosts.
+- **Ephemeral workdirs.** With `CLEANUP_WORKDIR=True`, each job's directory is
+  removed once its output is collected, so jobs cannot read each other's leftovers.
+- **Fail-closed.** If a job cannot be set up or sandboxed (e.g. user namespaces
+  unavailable, unreachable repo, oversized script) the runner marks that job failed
+  and continues, rather than executing it unsandboxed or stalling the queue.
 
 ## Operator notes / prerequisites
 
 - **`runAsUser: 1000`** in `deployment.yaml` must match the `docker` user baked into
   the base image. Verify and adjust:
   `docker run --rm docker-registry.ebrains.eu/neuromorphic/demo id`.
+- **Unprivileged user namespaces** must be available on the node for the bubblewrap
+  sandbox to start (most modern GKE/EKS/AKS node images allow them under
+  `RuntimeDefault` seccomp). Verify inside the pod:
+  `kubectl exec deploy/nmpi-demo -c runner -- bwrap --unshare-all --dev /dev --ro-bind /usr /usr echo ok`
+  (should print `ok`). If it is blocked, either enable
+  `kernel.unprivileged_userns_clone=1` on the nodes or attach a custom (localhost)
+  seccomp profile that permits the namespace syscalls. Jobs fail closed until then.
 - The **egress `NetworkPolicy` only takes effect if the CNI enforces it** (Calico,
   Cilium, etc.). Confirm with your cluster.
 - A **per-pod PID limit** is a node-level kubelet setting (`podPidsLimit`), not
@@ -58,8 +86,7 @@ kubectl apply -k .
 - **TLS** is terminated at the ingress (cert-manager in the example), replacing the
   in-pod letsencrypt mount the old `docker run` setup used.
 
-## Not yet covered (Tier 1+)
+## Not yet covered (Tier 2+)
 
-Per-job sandboxing (bubblewrap/nsjail, no job-time network, no access to the config
-Secret), and fixes for `git clone --recursive` submodule SSRF and zip-slip archive
-extraction. See the security plan for details.
+Optional sandboxed RuntimeClass (gVisor/Kata) for VM/syscall-level isolation, and
+per-job ephemeral pods / microVMs.

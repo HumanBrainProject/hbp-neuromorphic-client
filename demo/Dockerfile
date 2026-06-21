@@ -1,12 +1,14 @@
 FROM docker-registry.ebrains.eu/neuralensemble/simulation:pynn0110
 
-# Only the tools needed to fetch job code. Under Kubernetes the runner is the
-# container's main process (see run-loop.sh) and file serving is handled by a
-# separate pod, so supervisor/cron/nginx are no longer installed here and this
-# image never runs anything as root.
+# Only the tools needed to fetch job code and sandbox its execution. Under
+# Kubernetes the runner is the container's main process (see run-loop.sh) and
+# file serving is handled by a separate pod, so supervisor/cron/nginx are no
+# longer installed here and this image never runs anything as root.
+# bubblewrap sandboxes each untrusted job (see sandbox-job.sh); coreutils
+# provides `timeout` for the wall-clock limit.
 USER root
 RUN apt-get update --fix-missing; \
-    apt-get -y -q install python3-pip git unzip curl; \
+    apt-get -y -q install python3-pip git unzip curl bubblewrap coreutils; \
     rm -rf /var/lib/apt/lists/*
 USER docker
 
@@ -21,7 +23,8 @@ RUN mkdir -p /home/docker/runner /home/docker/bin
 COPY nmpi /home/docker/packages/nmpi
 COPY bin/nmpi_run.py /home/docker/bin/nmpi_run.py
 COPY demo/run-loop.sh /home/docker/bin/run-loop.sh
-RUN chmod +x /home/docker/bin/run-loop.sh
+COPY demo/sandbox-job.sh /home/docker/bin/sandbox-job.sh
+RUN chmod +x /home/docker/bin/run-loop.sh /home/docker/bin/sandbox-job.sh
 
 # The root filesystem is mounted read-only in Kubernetes, so HOME points at a
 # writable emptyDir volume. PYTHONUSERBASE keeps the user-installed packages
@@ -32,7 +35,11 @@ ENV PYTHONPATH=/home/docker/packages \
     HOME=/home/docker/state \
     MPLCONFIGDIR=/tmp/matplotlib \
     PYTHONDONTWRITEBYTECODE=1 \
-    POLL_INTERVAL=60
+    POLL_INTERVAL=60 \
+    SANDBOX_SIM_ENV=/home/docker/env \
+    SANDBOX_TIMEOUT=600 \
+    SANDBOX_NPROC=512 \
+    SANDBOX_CPU_SECONDS=1200
 
 # cwd must be writable; the runner writes per-job directories under here.
 WORKDIR /home/docker/runner

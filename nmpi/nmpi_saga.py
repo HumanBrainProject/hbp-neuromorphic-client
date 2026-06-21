@@ -20,9 +20,12 @@ All the personalization should happen in the config file.
 """
 
 import os
+import stat
 
 from urllib.parse import urlparse
 import shutil
+import tarfile
+import zipfile
 from datetime import datetime
 import time
 import mimetypes
@@ -32,8 +35,7 @@ import codecs
 import traceback
 
 import radical.saga as saga
-import sh
-from sh import git, unzip, tar, curl
+from sh import git, curl
 from requests.auth import AuthBase
 
 import nmpi
@@ -42,6 +44,12 @@ import nmpi
 DEFAULT_SCRIPT_NAME = "run.py {system}"
 DEFAULT_PYNN_VERSION = "0.11"
 MAX_LOG_SIZE = 10000
+
+# Untrusted job-code retrieval limits and recognised forms.
+ARCHIVE_EXTENSIONS = (".tar.gz", ".tgz", ".zip")
+REMOTE_URL_SCHEMES = ("http", "https", "git", "ssh", "git+ssh", "git+https")
+MAX_INLINE_SCRIPT_SIZE = 1024 * 1024  # 1 MiB of inline Python
+MAX_ARCHIVE_EXTRACTED_SIZE = 500 * 1024 * 1024  # 500 MiB unpacked (zip-bomb guard)
 
 logger = logging.getLogger("NMPI")
 
@@ -311,6 +319,81 @@ def read_output(saga_job):
         return "", ""
 
 
+def check_code_url(url, allowed_hosts):
+    """
+    Validate the URL a job's code is fetched from, returning the parsed URL.
+
+    ``allowed_hosts`` is a list of permitted host names. If it is empty, any host
+    is allowed (backwards-compatible behaviour). Raises ValueError if the host is
+    not permitted.
+    """
+    parsed = urlparse(url)
+    if allowed_hosts:
+        host = parsed.hostname
+        if host is None or host not in allowed_hosts:
+            raise ValueError(
+                "Code URL host {!r} is not in the allowed list {}".format(host, allowed_hosts)
+            )
+    return parsed
+
+
+def _is_within_directory(directory, target_name):
+    """True if ``target_name`` resolves to a path inside ``directory``."""
+    directory = os.path.realpath(directory)
+    target = os.path.realpath(os.path.join(directory, target_name))
+    return target == directory or target.startswith(directory + os.sep)
+
+
+def _reject_unsafe_member(name, dest_dir):
+    """Raise ValueError if an archive member name would escape ``dest_dir``."""
+    if os.path.isabs(name) or os.path.normpath(name).startswith(".."):
+        raise ValueError("Unsafe path in archive: {!r}".format(name))
+    if not _is_within_directory(dest_dir, name):
+        raise ValueError("Archive member escapes target directory: {!r}".format(name))
+
+
+def safe_extract_zip(archive_path, dest_dir, max_total_bytes=MAX_ARCHIVE_EXTRACTED_SIZE):
+    """
+    Extract a zip archive into ``dest_dir``, rejecting path traversal (zip-slip),
+    symlinks, and archives that expand beyond ``max_total_bytes`` (zip bombs).
+    """
+    total = 0
+    with zipfile.ZipFile(archive_path) as zf:
+        for info in zf.infolist():
+            _reject_unsafe_member(info.filename, dest_dir)
+            mode = info.external_attr >> 16
+            if stat.S_ISLNK(mode):
+                raise ValueError("Archive contains a symlink: {!r}".format(info.filename))
+            total += info.file_size
+            if total > max_total_bytes:
+                raise ValueError("Archive expands to more than the allowed size")
+        zf.extractall(dest_dir)
+
+
+def safe_extract_tar(archive_path, dest_dir, max_total_bytes=MAX_ARCHIVE_EXTRACTED_SIZE):
+    """
+    Extract a tar archive into ``dest_dir``, rejecting path traversal, links and
+    device files, and archives that expand beyond ``max_total_bytes``.
+    """
+    total = 0
+    with tarfile.open(archive_path) as tf:
+        members = tf.getmembers()
+        for member in members:
+            _reject_unsafe_member(member.name, dest_dir)
+            if member.issym() or member.islnk():
+                raise ValueError("Archive contains a link: {!r}".format(member.name))
+            if member.isdev():
+                raise ValueError("Archive contains a device file: {!r}".format(member.name))
+            total += member.size
+            if total > max_total_bytes:
+                raise ValueError("Archive expands to more than the allowed size")
+        try:
+            # Python >= 3.12: extra defence-in-depth filtering.
+            tf.extractall(dest_dir, filter="data")
+        except TypeError:
+            tf.extractall(dest_dir)
+
+
 class JobRunner(object):
     """ """
 
@@ -358,6 +441,7 @@ class JobRunner(object):
             self._handle_output_data(nmpi_job, saga_job)
             self._update_status(nmpi_job, saga_job, default_job_states)
             logger.debug("Status of completed job updated")
+            self._cleanup_working_directory(saga_job)
             completed_jobs.append(nmpi_job)
 
         while True:
@@ -371,13 +455,43 @@ class JobRunner(object):
             if self.max_concurrent_jobs is not None:
                 while len(pending_jobs) >= self.max_concurrent_jobs:
                     finish_oldest()
-            saga_job = self.run(nmpi_job)
+            try:
+                saga_job = self.run(nmpi_job)
+            except Exception:
+                # A bad job (e.g. an unreachable repository or an oversized script)
+                # must not stall the queue: mark it failed and move on.
+                logger.exception("Could not start job %s", nmpi_job.get("id"))
+                self._mark_job_failed(nmpi_job, traceback.format_exc())
+                completed_jobs.append(nmpi_job)
+                continue
             self._update_status(nmpi_job, saga_job, default_job_states)
             pending_jobs.append((nmpi_job, saga_job))
         # Wait for any jobs still running.
         while pending_jobs:
             finish_oldest()
         return completed_jobs
+
+    def _mark_job_failed(self, nmpi_job, message):
+        """Record a job as failed on the queue without raising."""
+        nmpi_job["status"] = "error"
+        nmpi_job["timestamp_completion"] = datetime.now().isoformat()
+        log = nmpi_job.pop("log", "") or ""
+        nmpi_job["log"] = log + "\n" + _truncate(message)
+        try:
+            self.client.update_job(nmpi_job)
+        except Exception:
+            logger.exception("Could not update status of failed job %s", nmpi_job.get("id"))
+
+    def _cleanup_working_directory(self, saga_job):
+        """Remove a job's working directory once its output has been collected."""
+        if not self.config.get("CLEANUP_WORKDIR", False):
+            return
+        workdir = saga_job.get_description().working_directory
+        base = self.config.get("WORKING_DIRECTORY")
+        # Safety: only ever remove a per-job directory under the configured root.
+        if base and os.path.realpath(workdir).startswith(os.path.realpath(base) + os.sep):
+            shutil.rmtree(workdir, ignore_errors=True)
+            logger.debug("Removed working directory %s", workdir)
 
     def run(self, nmpi_job):
         # Build the job description
@@ -399,6 +513,19 @@ class JobRunner(object):
     def close(self):
         self.service.close()
 
+    def _working_directory(self, nmpi_job):
+        return os.path.join(self.config["WORKING_DIRECTORY"], "job_{}".format(nmpi_job["id"]))
+
+    def _command_tokens(self, nmpi_job):
+        """The job's command split into tokens, e.g. ["run.py", "nest"]."""
+        script_name = nmpi_job.get("command", "") or DEFAULT_SCRIPT_NAME
+        command_line = script_name.format(system=self.config["DEFAULT_PYNN_BACKEND"])
+        return command_line.split(" ")
+
+    def _main_script_path(self, nmpi_job):
+        """Absolute path of the job's main script within its working directory."""
+        return os.path.join(self._working_directory(nmpi_job), self._command_tokens(nmpi_job)[0])
+
     def _build_job_description(self, nmpi_job):
         """
         Construct a Saga job description based on an NMPI job description and
@@ -407,9 +534,8 @@ class JobRunner(object):
 
         job_desc = saga.job.Description()
         job_id = nmpi_job["id"]
-        job_desc.working_directory = os.path.join(
-            self.config["WORKING_DIRECTORY"], f"job_{job_id}"
-        )
+        working_directory = self._working_directory(nmpi_job)
+        job_desc.working_directory = working_directory
         # job_desc.spmd_variation    = "MPI" # to be commented out if not using MPI
 
         if nmpi_job["hardware_config"] is None:
@@ -418,9 +544,9 @@ class JobRunner(object):
             pyNN_version = nmpi_job["hardware_config"].get("pyNN_version", DEFAULT_PYNN_VERSION)
 
         if pyNN_version == "0.10":
-            job_desc.executable = self.config["JOB_EXECUTABLE_PYNN_10"]
+            executable = self.config["JOB_EXECUTABLE_PYNN_10"]
         elif pyNN_version == "0.11":
-            job_desc.executable = self.config["JOB_EXECUTABLE_PYNN_11"]
+            executable = self.config["JOB_EXECUTABLE_PYNN_11"]
         else:
             raise ValueError(
                 "Supported PyNN versions: 0.10, 0.11. {} not supported".format(pyNN_version)
@@ -428,23 +554,28 @@ class JobRunner(object):
 
         if self.config.get("JOB_QUEUE", None) is not None:
             job_desc.queue = self.config["JOB_QUEUE"]  # aka SLURM "partition"
-        script_name = nmpi_job.get("command", "")
-        if not script_name:
-            script_name = DEFAULT_SCRIPT_NAME
-        command_line = script_name.format(
-            system=self.config["DEFAULT_PYNN_BACKEND"]
-        )  # TODO: allow choosing backend in "hardware_config
-        command_line = os.path.join(job_desc.working_directory, command_line)
-        job_desc.arguments = command_line.split(" ")
+
+        tokens = self._command_tokens(nmpi_job)
+        main_script = os.path.join(working_directory, tokens[0])
+        real_arguments = [main_script] + tokens[1:]
+
+        sandbox = self.config.get("SANDBOX_WRAPPER")
+        if sandbox:
+            # Run the untrusted script inside the sandbox wrapper, which gives it no
+            # network, its own namespaces, only its working directory writable, and
+            # resource/time limits. The wrapper takes the working directory as its
+            # first argument, then the real executable and its arguments.
+            job_desc.executable = sandbox
+            job_desc.arguments = [working_directory, executable] + real_arguments
+        else:
+            job_desc.executable = executable
+            job_desc.arguments = real_arguments
+
         job_desc.output = f"saga_{job_id}.out"
         job_desc.error = f"saga_{job_id}.err"
         # job_desc.total_cpu_count
         # job_desc.number_of_processes = 1
-        # job_desc.processes_per_host
-        # job_desc.threads_per_process
-        # job_desc.wall_time_limit = 1
-        # job_desc.total_physical_memory
-        logger.info(command_line)
+        logger.info(" ".join([job_desc.executable] + job_desc.arguments))
         return job_desc
 
     def _create_working_directory(self, workdir):
@@ -455,42 +586,67 @@ class JobRunner(object):
         else:
             logger.debug(f"Directory {workdir} already exists")
 
+    def _allowed_code_hosts(self):
+        raw = self.config.get("ALLOWED_CODE_HOSTS", "") or ""
+        return [host.strip() for host in raw.split(",") if host.strip()]
+
+    def _clone_repository(self, url, working_directory):
+        """Shallow-clone a git repository, without (attacker-controlled) submodules."""
+        git_env = dict(os.environ)
+        git_env.update(
+            {
+                "GIT_TERMINAL_PROMPT": "0",  # never prompt for credentials
+                "GIT_ASKPASS": "/bin/true",
+                "GIT_SSH_COMMAND": "ssh -o BatchMode=yes",
+                "GIT_LFS_SKIP_SMUDGE": "1",
+            }
+        )
+        # No --recursive: submodule URLs are attacker-controlled (SSRF / arbitrary fetch).
+        git.clone(
+            "--depth",
+            "1",
+            url,
+            working_directory,
+            _env=git_env,
+            _timeout=int(self.config.get("CLONE_TIMEOUT", 120)),
+        )
+        logger.info("Cloned repository %s", url)
+
     def _get_code(self, nmpi_job, job_desc):
         """
         Obtain the code and place it in the working directory.
 
-        If the experiment description is the URL of a Git repository, try to clone it.
-        If it is the URL of a zip or .tar.gz archive, download and unpack it.
-        Otherwise, the content of "code" is the code: write it to a file.
+        If "code" is the URL of a zip/tar.gz archive, download and safely unpack it.
+        If it is the URL of a Git repository, shallow-clone it (no submodules).
+        Otherwise the content of "code" is the script itself: write it to a file.
         """
-        url_candidate = urlparse(nmpi_job["code"])
-        logger.debug("Get code: {url_candidate.netloc} {url_candidate.path}")
-        if url_candidate.scheme and url_candidate.path.endswith((".tar.gz", ".zip", ".tgz")):
+        code = nmpi_job["code"]
+        allowed_hosts = self._allowed_code_hosts()
+        parsed = urlparse(code)
+        logger.debug("Get code: %s %s", parsed.netloc, parsed.path)
+
+        if parsed.scheme and parsed.path.endswith(ARCHIVE_EXTENSIONS):
+            check_code_url(code, allowed_hosts)
             self._create_working_directory(job_desc.working_directory)
-            target = os.path.join(job_desc.working_directory, os.path.basename(url_candidate.path))
-            # urlretrieve(nmpi_job['code'], target) # not working via KIP https proxy
-            curl(nmpi_job["code"], "-o", target)
-            logger.info(f"Retrieved file from {nmpi_job['code']} to local target {target}")
-            if url_candidate.path.endswith((".tar.gz", ".tgz")):
-                tar("xzf", target, directory=job_desc.working_directory)
-            elif url_candidate.path.endswith(".zip"):
-                try:
-                    # -o for auto-overwrite
-                    unzip("-o", target, d=job_desc.working_directory)
-                except Exception:
-                    logger.error(f"Could not unzip file {target}")
+            target = os.path.join(job_desc.working_directory, os.path.basename(parsed.path))
+            # urlretrieve(code, target) # not working via KIP https proxy
+            curl(code, "-o", target, _timeout=int(self.config.get("FETCH_TIMEOUT", 120)))
+            logger.info("Retrieved file from %s to local target %s", code, target)
+            if parsed.path.endswith((".tar.gz", ".tgz")):
+                safe_extract_tar(target, job_desc.working_directory)
+            else:
+                safe_extract_zip(target, job_desc.working_directory)
+        elif parsed.scheme in REMOTE_URL_SCHEMES:
+            check_code_url(code, allowed_hosts)
+            self._clone_repository(code, job_desc.working_directory)
         else:
-            try:
-                # Check the "code" field for a git url (clone it into the workdir) or a script (create a file into the workdir)
-                # URL: use git clone
-                git.clone("--recursive", nmpi_job["code"], job_desc.working_directory)
-                logger.info(f"Cloned repository {nmpi_job['code']}")
-            except (sh.ErrorReturnCode_128, sh.ErrorReturnCode):
-                # SCRIPT: create file (in the current directory)
-                logger.info("The code field appears to be a script.")
-                self._create_working_directory(job_desc.working_directory)
-                with codecs.open(job_desc.arguments[0], "w", encoding="utf8") as job_main_script:
-                    job_main_script.write(nmpi_job["code"])
+            # The content is the script itself.
+            logger.info("The code field appears to be a script.")
+            if len(code.encode("utf-8")) > MAX_INLINE_SCRIPT_SIZE:
+                raise ValueError("Inline job script exceeds the maximum allowed size")
+            self._create_working_directory(job_desc.working_directory)
+            with codecs.open(self._main_script_path(nmpi_job), "w", encoding="utf8") as fp:
+                fp.write(code)
 
     def _get_input_data(self, nmpi_job, job_desc):
         """

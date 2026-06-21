@@ -5,6 +5,7 @@
 
 import sys
 import os.path
+import io
 import unittest
 import tempfile
 import shutil
@@ -296,6 +297,7 @@ class ConcurrencyLimitTest(unittest.TestCase):
 
         runner = nmpi_saga.JobRunner.__new__(nmpi_saga.JobRunner)
         runner.max_concurrent_jobs = max_concurrent_jobs
+        runner.config = {}  # CLEANUP_WORKDIR unset -> no workdir removal
 
         class _FakeClient(object):
             def get_next_job(self):
@@ -335,3 +337,70 @@ class ConcurrencyLimitTest(unittest.TestCase):
         completed = runner.next()
         self.assertEqual([j["id"] for j in completed], [1, 2, 3, 4])
         self.assertEqual(observed["max"], 4)
+
+
+class CodeFetchSecurityTest(unittest.TestCase):
+    """
+    Unit tests for the Tier 1 code-retrieval hardening: safe archive extraction
+    and the code-URL host allowlist. These are pure functions; no network needed.
+    """
+
+    def setUp(self):
+        self.src_dir = tempfile.mkdtemp()
+        self.dest_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.src_dir, ignore_errors=True)
+        shutil.rmtree(self.dest_dir, ignore_errors=True)
+
+    def test_safe_extract_zip_accepts_legitimate_archive(self):
+        archive = os.path.join(self.src_dir, "ok.zip")
+        with ZipFile(archive, "w") as zf:
+            zf.writestr("run.py", "print('hi')")
+        nmpi_saga.safe_extract_zip(archive, self.dest_dir)
+        self.assertEqual(os.listdir(self.dest_dir), ["run.py"])
+
+    def test_safe_extract_zip_rejects_path_traversal(self):
+        archive = os.path.join(self.src_dir, "evil.zip")
+        with ZipFile(archive, "w") as zf:
+            zf.writestr("../escape.txt", "pwned")
+        with self.assertRaises(ValueError):
+            nmpi_saga.safe_extract_zip(archive, self.dest_dir)
+        self.assertFalse(os.path.exists(os.path.join(os.path.dirname(self.dest_dir), "escape.txt")))
+
+    def test_safe_extract_zip_rejects_absolute_path(self):
+        archive = os.path.join(self.src_dir, "abs.zip")
+        with ZipFile(archive, "w") as zf:
+            zf.writestr("/tmp/escape.txt", "pwned")
+        with self.assertRaises(ValueError):
+            nmpi_saga.safe_extract_zip(archive, self.dest_dir)
+
+    def test_safe_extract_tar_rejects_path_traversal(self):
+        archive = os.path.join(self.src_dir, "evil.tar.gz")
+        with tarfile.open(archive, "w:gz") as tf:
+            data = b"pwned"
+            info = tarfile.TarInfo("../escape.txt")
+            info.size = len(data)
+            tf.addfile(info, io.BytesIO(data))
+        with self.assertRaises(ValueError):
+            nmpi_saga.safe_extract_tar(archive, self.dest_dir)
+
+    def test_safe_extract_tar_rejects_symlink(self):
+        archive = os.path.join(self.src_dir, "link.tar.gz")
+        with tarfile.open(archive, "w:gz") as tf:
+            info = tarfile.TarInfo("link")
+            info.type = tarfile.SYMTYPE
+            info.linkname = "/etc/passwd"
+            tf.addfile(info)
+        with self.assertRaises(ValueError):
+            nmpi_saga.safe_extract_tar(archive, self.dest_dir)
+
+    def test_check_code_url_allows_when_no_allowlist(self):
+        # Empty allowlist -> any host permitted (backwards compatible).
+        nmpi_saga.check_code_url("https://anywhere.example.com/repo.git", [])
+
+    def test_check_code_url_enforces_allowlist(self):
+        allowed = ["github.com", "gitlab.ebrains.eu"]
+        nmpi_saga.check_code_url("https://github.com/user/repo.git", allowed)
+        with self.assertRaises(ValueError):
+            nmpi_saga.check_code_url("https://evil.example.com/repo.git", allowed)

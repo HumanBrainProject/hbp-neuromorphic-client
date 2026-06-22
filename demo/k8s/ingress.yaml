@@ -1,0 +1,29 @@
+# Example ingress: terminates TLS for the public file server.
+# TLS is handled here (e.g. via cert-manager) instead of inside the pod, so the
+# letsencrypt volume mount the old docker-run setup needed is gone.
+# Adjust ingressClassName, host and TLS/cert-manager annotations for your cluster.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nmpi-demo
+  labels:
+    app: nmpi-demo
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - demo.hbpneuromorphic.eu
+      secretName: nmpi-demo-tls
+  rules:
+    - host: demo.hbpneuromorphic.eu
+      http:
+        paths:
+          - path: /data
+            pathType: Prefix
+            backend:
+              service:
+                name: nmpi-demo
+                port:
+                  number: 80

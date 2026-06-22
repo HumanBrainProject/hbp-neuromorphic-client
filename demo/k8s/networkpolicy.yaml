@@ -1,0 +1,50 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nmpi-demo
+  labels:
+    app: nmpi-demo
+spec:
+  podSelector:
+    matchLabels:
+      app: nmpi-demo
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow inbound only to the file server port (e.g. from the ingress controller).
+    # Tighten `from:` to the ingress-controller namespace/pod selector in production.
+    - ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # DNS resolution.
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Outbound HTTP(S)/git to the public internet only: the job queue API, EBRAINS
+    # storage, and (optionally) git/archive hosts. The `except` list blocks the
+    # cloud metadata endpoint (169.254.169.254) and all RFC1918/CGNAT ranges, so a
+    # compromised job cannot reach the metadata service or move laterally to
+    # in-cluster services.
+    #
+    # NOTE: Tier 0 still shares this egress with the job process. Tier 1 removes
+    # network access from the job itself (sandbox with no network namespace).
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 100.64.0.0/10
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 9418  # git://

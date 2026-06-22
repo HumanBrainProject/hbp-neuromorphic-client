@@ -1,0 +1,131 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nmpi-demo
+  labels:
+    app: nmpi-demo
+spec:
+  replicas: 1
+  # The runner keeps local job state on a single PVC, so do not run two at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: nmpi-demo
+  template:
+    metadata:
+      labels:
+        app: nmpi-demo
+    spec:
+      # This pod runs untrusted, user-submitted code. Do not give it API access.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # fsGroup makes the mounted volumes group-writable so the non-root
+        # containers can write to them.
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        # RuntimeDefault is kept. The per-job bubblewrap sandbox (Tier 1) needs
+        # unprivileged user namespaces to be available on the node; on modern
+        # containerd/runc with RuntimeDefault this is allowed. If the sandbox
+        # cannot start, the runner marks the job failed (fail-closed) — see
+        # README.md for how to verify and, if needed, a custom seccomp profile.
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        # ---- Job runner: polls the queue and executes user scripts ----
+        - name: runner
+          image: docker-registry.ebrains.eu/neuromorphic/demo:latest
+          imagePullPolicy: Always
+          securityContext:
+            # NOTE: 1000 must match the uid/gid of the `docker` user baked into
+            # the base image. Verify with:
+            #   docker run --rm docker-registry.ebrains.eu/neuromorphic/demo id
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "256Mi"
+            limits:
+              # The Demo is intentionally tiny; this also caps a runaway/abusive job.
+              cpu: "100m"
+              memory: "512Mi"
+              ephemeral-storage: "1Gi"
+          volumeMounts:
+            - name: config
+              mountPath: /home/docker/config
+              readOnly: true
+            - name: data
+              mountPath: /home/docker/data
+            - name: runner-scratch
+              mountPath: /home/docker/runner
+            - name: home
+              mountPath: /home/docker/state
+            - name: tmp
+              mountPath: /tmp
+        # ---- File server: serves completed-job output, read-only ----
+        - name: fileserver
+          image: docker-registry.ebrains.eu/neuromorphic/nginx-unprivileged:1.27-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            runAsUser: 101
+            runAsGroup: 101
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "50m"
+              memory: "64Mi"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+              readOnly: true
+            - name: fileserver-config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+              readOnly: true
+            # nginx-unprivileged needs these writable even with a read-only rootfs.
+            - name: nginx-tmp
+              mountPath: /tmp
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: nginx-run
+              mountPath: /var/run
+      volumes:
+        - name: config
+          secret:
+            secretName: nmpi-demo-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: nmpi-demo-data
+        - name: runner-scratch
+          emptyDir:
+            sizeLimit: "2Gi"
+        - name: home
+          emptyDir:
+            sizeLimit: "256Mi"
+        - name: tmp
+          emptyDir:
+            sizeLimit: "512Mi"
+        - name: fileserver-config
+          configMap:
+            name: nmpi-demo-fileserver
+        - name: nginx-tmp
+          emptyDir: {}
+        - name: nginx-cache
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}

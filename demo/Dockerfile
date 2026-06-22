@@ -22,9 +22,8 @@ RUN /usr/bin/python3 -m pip install -r /home/docker/packages/requirements-provid
 RUN mkdir -p /home/docker/runner /home/docker/bin
 COPY nmpi /home/docker/packages/nmpi
 COPY bin/nmpi_run.py /home/docker/bin/nmpi_run.py
-COPY demo/run-loop.sh /home/docker/bin/run-loop.sh
-COPY demo/sandbox-job.sh /home/docker/bin/sandbox-job.sh
-RUN chmod +x /home/docker/bin/run-loop.sh /home/docker/bin/sandbox-job.sh
+COPY --chown=docker:docker --chmod=755 demo/run-loop.sh /home/docker/bin/run-loop.sh
+COPY --chown=docker:docker --chmod=755 demo/sandbox-job.sh /home/docker/bin/sandbox-job.sh
 
 # The root filesystem is mounted read-only in Kubernetes, so HOME points at a
 # writable emptyDir volume. PYTHONUSERBASE keeps the user-installed packages

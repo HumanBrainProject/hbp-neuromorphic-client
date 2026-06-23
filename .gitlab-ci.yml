@@ -29,3 +29,15 @@ build_demo_server:
     - docker push docker-registry.ebrains.eu/neuromorphic/demo
   tags:
     - shell-runner
+
+build_demo_fileserver:
+  stage: build
+  only:
+    variables:
+      - $CI_COMMIT_BRANCH == "main"
+  script:
+    - docker build -f demo/Dockerfile.fileserver -t docker-registry.ebrains.eu/neuromorphic/demo-fileserver .
+    - docker login -u $DOCKER_REGISTRY_USER -p $DOCKER_REGISTRY_SECRET docker-registry.ebrains.eu
+    - docker push docker-registry.ebrains.eu/neuromorphic/demo-fileserver
+  tags:
+    - shell-runner

@@ -1,6 +1,6 @@
 requests>=2.20.0
 apache-libcloud==0.14.1
-pymongo==2.7.1
+pymongo==4.6.3
 colorama==0.3.1
 radical.utils==0.7.3
 radical.saga
